@@ -8,6 +8,7 @@ export interface ITurnoCaja {
     efectivoReportadoCierre?: number | undefined;
     efectivoCalculadoSistema: number;
     diferenciaCierre: number;
+    totalEgresosCaja: number;
     observacionesCierre?: string | undefined;
     estado: 'ABIERTO' | 'CERRADO';
 }

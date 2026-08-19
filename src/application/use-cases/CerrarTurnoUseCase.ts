@@ -18,8 +18,8 @@ export class CerrarTurnoUseCase {
         // 1. Obtener ventas en efectivo durante el turno
         const ventas = await this.turnoRepository.calcularVentasEfectivoTurno(dto.turnoId);
 
-        // 2. Efectivo teórico que DEBE haber en caja = Base inicial + Ventas en Efectivo
-        const efectivoCalculadoSistema = turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado;
+        // Fórmula correcta para el cuadre de caja (Base + Ventas Físicas - Gastos)
+        const efectivoCalculadoSistema = turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado - turno.totalEgresosCaja;
 
         // 3. Diferencia (Reportado - Teórico)
         //  > 0 = Sobrante | < 0 = Faltante | 0 = Exacto

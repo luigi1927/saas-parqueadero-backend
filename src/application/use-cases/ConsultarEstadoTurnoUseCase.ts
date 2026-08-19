@@ -8,7 +8,9 @@ export class ConsultarEstadoTurnoUseCase {
         if (!turno) return { tieneTurnoAbierto: false, turno: null };
 
         const ventas = await this.turnoRepository.calcularVentasEfectivoTurno(turno.id);
-        const efectivoCalculadoActual = turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado;
+
+        // Fórmula en vivo: (Base inicial + Ventas en efectivo) - Gastos registrados
+        const efectivoCalculadoActual = (turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado) - turno.totalEgresosCaja;
 
         return {
             tieneTurnoAbierto: true,
@@ -16,6 +18,7 @@ export class ConsultarEstadoTurnoUseCase {
                 id: turno.id,
                 fechaApertura: turno.fechaApertura,
                 montoInicialEfectivo: turno.montoInicialEfectivo,
+                totalEgresosCaja: turno.totalEgresosCaja,
                 ventasEfectivoActuales: ventas.totalEfectivoRecaudado,
                 ventasOtrosMetodosActuales: ventas.totalOtrosMetodos,
                 totalTicketsCobrados: ventas.totalTicketsCobrados,

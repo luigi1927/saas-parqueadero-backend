@@ -112,6 +112,7 @@ export class MySQLTurnoRepository implements ITurnoRepository {
             efectivoReportadoCierre: fila.monto_efectivo_declarado !== null ? Number(fila.monto_efectivo_declarado) : undefined,
             efectivoCalculadoSistema: fila.monto_efectivo_esperado !== null ? Number(fila.monto_efectivo_esperado) : 0,
             diferenciaCierre: fila.diferencia_cuadre !== null ? Number(fila.diferencia_cuadre) : 0,
+            totalEgresosCaja: Number(fila.total_egresos_caja),
             estado: fila.estado
         };
     }

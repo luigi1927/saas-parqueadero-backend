@@ -11,6 +11,7 @@ import authRoutes from './presentation/routes/auth.routes.js';
 import entradaRoutes from './presentation/routes/entrada.routes.js';
 import ticketRoutes from './presentation/routes/ticket.routes.js';
 import turnoRoutes from './presentation/routes/turno.routes.js';
+import egresoRoutes from './presentation/routes/egreso.routes.js';
 dotenv.config();
 
 const app: Application = express();
@@ -34,6 +35,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/entradas', entradaRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/turnos', turnoRoutes);
+app.use('/api/v1/egresos', egresoRoutes);
 // Endpoint HealthCheck
 app.get('/api/v1/health', (_req: Request, res: Response) => {
     res.status(200).json({
