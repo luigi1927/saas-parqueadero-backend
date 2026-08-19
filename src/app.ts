@@ -13,6 +13,7 @@ import ticketRoutes from './presentation/routes/ticket.routes.js';
 import turnoRoutes from './presentation/routes/turno.routes.js';
 import egresoRoutes from './presentation/routes/egreso.routes.js';
 import tarifaRoutes from './presentation/routes/tarifa.routes.js';
+import clienteMensualRoutes from './presentation/routes/clienteMensual.routes.js';
 dotenv.config();
 
 const app: Application = express();
@@ -38,6 +39,7 @@ app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/turnos', turnoRoutes);
 app.use('/api/v1/egresos', egresoRoutes);
 app.use('/api/v1/tarifas', tarifaRoutes);
+app.use('/api/v1/clientes-mensuales', clienteMensualRoutes);
 
 // Endpoint HealthCheck
 app.get('/api/v1/health', (_req: Request, res: Response) => {

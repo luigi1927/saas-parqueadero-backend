@@ -3,11 +3,13 @@ import { MySQLTurnoRepository } from '../../infrastructure/repositories/MySQLTur
 import { AbrirTurnoUseCase } from '../../application/use-cases/AbrirTurnoUseCase.js';
 import { CerrarTurnoUseCase } from '../../application/use-cases/CerrarTurnoUseCase.js';
 import { ConsultarEstadoTurnoUseCase } from '../../application/use-cases/ConsultarEstadoTurnoUseCase.js';
+import { MySQLClienteMensualRepository } from '../../infrastructure/repositories/MySQLClienteMensualRepository.js';
 
 const turnoRepository = new MySQLTurnoRepository();
 const abrirTurnoUseCase = new AbrirTurnoUseCase(turnoRepository);
-const cerrarTurnoUseCase = new CerrarTurnoUseCase(turnoRepository);
-const consultarEstadoTurnoUseCase = new ConsultarEstadoTurnoUseCase(turnoRepository);
+const clienteMensualRepository = new MySQLClienteMensualRepository();
+const cerrarTurnoUseCase = new CerrarTurnoUseCase(turnoRepository, clienteMensualRepository);
+const consultarEstadoTurnoUseCase = new ConsultarEstadoTurnoUseCase(turnoRepository, clienteMensualRepository);
 
 export class TurnoController {
 

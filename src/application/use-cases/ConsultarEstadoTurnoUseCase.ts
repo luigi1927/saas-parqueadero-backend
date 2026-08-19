@@ -1,16 +1,30 @@
 import type { ITurnoRepository } from '../../domain/repositories/ITurnoRepository.js';
+import type { IClienteMensualRepository } from '../../domain/repositories/IClienteMensualRepository.js';
 
 export class ConsultarEstadoTurnoUseCase {
-    constructor(private turnoRepository: ITurnoRepository) { }
+    constructor(
+        private turnoRepository: ITurnoRepository,
+        private clienteMensualRepository: IClienteMensualRepository
+    ) { }
 
-    async ejecutar(parqueaderoId: number, usuarioId: number) {
+    async ejecutar(usuarioId: number, parqueaderoId: number) {
         const turno = await this.turnoRepository.buscarTurnoAbiertoPorUsuario(parqueaderoId, usuarioId);
-        if (!turno) return { tieneTurnoAbierto: false, turno: null };
 
-        const ventas = await this.turnoRepository.calcularVentasEfectivoTurno(turno.id);
+        if (!turno) {
+            return { tieneTurnoAbierto: false, turno: null };
+        }
 
-        // Fórmula en vivo: (Base inicial + Ventas en efectivo) - Gastos registrados
-        const efectivoCalculadoActual = (turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado) - turno.totalEgresosCaja;
+        // 1. Obtener ventas de tickets por horas/fracciones
+        const ventasTickets = await this.turnoRepository.calcularVentasEfectivoTurno(turno.id);
+
+        // 2. Obtener recaudo por mensualidades
+        const recaudoMensualidades = await this.clienteMensualRepository.calcularRecaudoMensualidadesTurno(turno.id);
+
+        // 3. Unificar totales
+        const totalVentasEfectivo = ventasTickets.totalEfectivoRecaudado + recaudoMensualidades.totalEfectivo;
+        const totalVentasOtros = ventasTickets.totalOtrosMetodos + recaudoMensualidades.totalOtros;
+
+        const efectivoEsperadoEnCaja = turno.montoInicialEfectivo + totalVentasEfectivo - turno.totalEgresosCaja;
 
         return {
             tieneTurnoAbierto: true,
@@ -19,10 +33,12 @@ export class ConsultarEstadoTurnoUseCase {
                 fechaApertura: turno.fechaApertura,
                 montoInicialEfectivo: turno.montoInicialEfectivo,
                 totalEgresosCaja: turno.totalEgresosCaja,
-                ventasEfectivoActuales: ventas.totalEfectivoRecaudado,
-                ventasOtrosMetodosActuales: ventas.totalOtrosMetodos,
-                totalTicketsCobrados: ventas.totalTicketsCobrados,
-                efectivoEsperadoEnCaja: efectivoCalculadoActual
+                ventasEfectivoTickets: ventasTickets.totalEfectivoRecaudado,
+                ventasEfectivoMensualidades: recaudoMensualidades.totalEfectivo,
+                ventasEfectivoActuales: totalVentasEfectivo,
+                ventasOtrosMetodosActuales: totalVentasOtros,
+                totalTicketsCobrados: ventasTickets.totalTicketsCobrados,
+                efectivoEsperadoEnCaja
             }
         };
     }

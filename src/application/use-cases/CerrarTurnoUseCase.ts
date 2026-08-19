@@ -1,8 +1,12 @@
 import type { ITurnoRepository } from '../../domain/repositories/ITurnoRepository.js';
+import type { IClienteMensualRepository } from '../../domain/repositories/IClienteMensualRepository.js';
 import type { ICerrarTurnoDTO } from '../../domain/types/turno.types.js';
 
 export class CerrarTurnoUseCase {
-    constructor(private turnoRepository: ITurnoRepository) { }
+    constructor(
+        private turnoRepository: ITurnoRepository,
+        private clienteMensualRepository: IClienteMensualRepository
+    ) { }
 
     async ejecutar(dto: ICerrarTurnoDTO) {
         if (dto.efectivoReportadoCierre < 0) {
@@ -15,17 +19,23 @@ export class CerrarTurnoUseCase {
             throw new Error('El turno ya se encuentra cerrado.');
         }
 
-        // 1. Obtener ventas en efectivo durante el turno
-        const ventas = await this.turnoRepository.calcularVentasEfectivoTurno(dto.turnoId);
+        // 1. Obtener recaudos de tickets por rotación (Horas / Fracciones)
+        const ventasTickets = await this.turnoRepository.calcularVentasEfectivoTurno(dto.turnoId);
 
-        // Fórmula correcta para el cuadre de caja (Base + Ventas Físicas - Gastos)
-        const efectivoCalculadoSistema = turno.montoInicialEfectivo + ventas.totalEfectivoRecaudado - turno.totalEgresosCaja;
+        // 2. Obtener recaudos de suscripciones de clientes mensuales
+        const recaudoMensualidades = await this.clienteMensualRepository.calcularRecaudoMensualidadesTurno(dto.turnoId);
 
-        // 3. Diferencia (Reportado - Teórico)
-        //  > 0 = Sobrante | < 0 = Faltante | 0 = Exacto
+        // 3. Consolidación de ingresos
+        const totalVentasEfectivo = ventasTickets.totalEfectivoRecaudado + recaudoMensualidades.totalEfectivo;
+        const totalVentasOtrosMetodos = ventasTickets.totalOtrosMetodos + recaudoMensualidades.totalOtros;
+
+        // Fórmula de arqueo (Base + Efectivo Total Recaudado - Egresos de Caja)
+        const efectivoCalculadoSistema = turno.montoInicialEfectivo + totalVentasEfectivo - turno.totalEgresosCaja;
+
+        // 4. Diferencia (Reportado - Teórico)
         const diferenciaCierre = dto.efectivoReportadoCierre - efectivoCalculadoSistema;
 
-        // 4. Guardar cierre
+        // 5. Guardar cierre
         await this.turnoRepository.cerrarTurno({
             turnoId: dto.turnoId,
             efectivoReportado: dto.efectivoReportadoCierre,
@@ -39,9 +49,12 @@ export class CerrarTurnoUseCase {
             fechaApertura: turno.fechaApertura,
             fechaCierre: new Date(),
             montoInicialEfectivo: turno.montoInicialEfectivo,
-            totalVentasEfectivo: ventas.totalEfectivoRecaudado,
-            totalVentasOtrosMetodos: ventas.totalOtrosMetodos,
-            totalTicketsCobrados: ventas.totalTicketsCobrados,
+            totalEgresosCaja: turno.totalEgresosCaja,
+            totalVentasEfectivoTickets: ventasTickets.totalEfectivoRecaudado,
+            totalVentasEfectivoMensualidades: recaudoMensualidades.totalEfectivo,
+            totalVentasEfectivo,
+            totalVentasOtrosMetodos,
+            totalTicketsCobrados: ventasTickets.totalTicketsCobrados,
             efectivoCalculadoSistema,
             efectivoReportadoCierre: dto.efectivoReportadoCierre,
             diferenciaCierre,
