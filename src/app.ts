@@ -10,6 +10,7 @@ import { checkDatabaseConnection } from './infrastructure/database/mysql.config.
 import authRoutes from './presentation/routes/auth.routes.js';
 import entradaRoutes from './presentation/routes/entrada.routes.js';
 import ticketRoutes from './presentation/routes/ticket.routes.js';
+import turnoRoutes from './presentation/routes/turno.routes.js';
 dotenv.config();
 
 const app: Application = express();
@@ -32,6 +33,7 @@ app.use(morgan('dev')); // Logger de peticiones HTTP en consola
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/entradas', entradaRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/turnos', turnoRoutes);
 // Endpoint HealthCheck
 app.get('/api/v1/health', (_req: Request, res: Response) => {
     res.status(200).json({
