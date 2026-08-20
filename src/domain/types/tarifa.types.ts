@@ -56,6 +56,12 @@ export interface ITarifaConfig {
     valorRecargoNocturno: number;
 }
 
+export interface IResultadoTiempo {
+    minutosTotales: number;
+    horasACobrar: number;
+    esTiempoGracia: boolean;
+}
+
 // Contrato para las Estrategias de Recargo Nocturno
 export interface IRecargoStrategy {
     calcular(subtotalBase: number, valorConfigurado: number): number;
