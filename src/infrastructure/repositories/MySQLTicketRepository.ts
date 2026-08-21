@@ -202,4 +202,40 @@ export class MySQLTicketRepository implements ITicketRepository {
       }
     };
   }
+
+  async buscarTicketActivoPorTelefono(telefonoWhatsapp: string): Promise<ITicket | null> {
+    const connection = await dbPool.getConnection();
+    try {
+      const telefonoLimpio = telefonoWhatsapp.replace(/\D/g, '');
+      console.log('telefonoLimpio :>> ', telefonoLimpio);
+
+      const sql = `
+          SELECT 
+            id,
+            parqueadero_id AS parqueaderoId,
+            BIN_TO_UUID(codigo_qr) AS codigoQr,
+            placa,
+            telefono_whatsapp AS telefonoWhatsapp,
+            tipo_vehiculo AS tipoVehiculo,
+            observaciones_danos AS observacionesDanos,
+            fecha_entrada AS fechaEntrada,
+            estado,
+            turno_ingreso_id AS turnoIngresoId
+          FROM tickets
+          WHERE REPLACE(telefono_whatsapp, '+', '') LIKE ? AND estado = 'ACTIVO'
+          ORDER BY fecha_entrada DESC
+          LIMIT 1
+        `;
+
+      const [rows]: any = await connection.execute(sql, [`%${telefonoLimpio}%`]);
+
+      if (!rows || rows.length === 0) {
+        return null;
+      }
+
+      return rows[0] as ITicket;
+    } finally {
+      connection.release();
+    }
+  }
 }

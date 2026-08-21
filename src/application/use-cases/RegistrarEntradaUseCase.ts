@@ -1,9 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
 import type { ITicketRepository, IRegistroEntradaDTO } from '../../domain/repositories/ITicketRepository.js';
+import type { IWhatsAppService } from '../../domain/services/IWhatsAppService.js';
 
 export class RegistrarEntradaUseCase {
-    constructor(private ticketRepository: ITicketRepository) { }
+    constructor(
+        private ticketRepository: ITicketRepository,
+        private whatsappService?: IWhatsAppService
+    ) { }
 
     async ejecutar(data: IRegistroEntradaDTO) {
         const placaLimpia = data.placa.trim().toUpperCase();
@@ -29,6 +33,7 @@ export class RegistrarEntradaUseCase {
         // 4. Generar token UUID v4 y Código QR
         const codigoQrToken = uuidv4();
         const qrImageBase64 = await QRCode.toDataURL(codigoQrToken);
+        const fechaEntrada = new Date();
 
         // 5. Crear el ticket en la BDD
         const ticketId = await this.ticketRepository.crearTicket({
@@ -40,10 +45,31 @@ export class RegistrarEntradaUseCase {
             turnoIngresoId
         });
 
+        // 6. Notificar por WhatsApp en segundo plano (estilo Zybo)
+        if (data.telefonoWhatsapp && this.whatsappService) {
+            const horaFormateada = fechaEntrada.toLocaleTimeString('es-CO', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            // Disparamos el envío a Baileys
+            this.whatsappService.enviarMensajeIngreso({
+                telefono: data.telefonoWhatsapp,
+                placa: placaLimpia,
+                horaIngreso: horaFormateada,
+                nombreParqueadero: 'PARQUEADERO CENTRAL',
+                ticketId: ticketId
+            }).then(exito => {
+                if (!exito) console.log('⚠️ No se pudo entregar el mensaje por WhatsApp.');
+            }).catch(err => console.error('❌ Error crítico al enviar por Baileys:', err));
+        }
+
+        // 7. Retorno unificado para Express
         return {
             ticketId,
             placa: placaLimpia,
-            fechaEntrada: new Date(),
+            fechaEntrada,
             codigoQrToken,
             qrImageBase64,
             telefonoWhatsapp: data.telefonoWhatsapp || null
