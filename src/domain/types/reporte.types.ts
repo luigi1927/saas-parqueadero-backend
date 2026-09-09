@@ -130,13 +130,27 @@ export interface IMensualidadMora {
     mesesAdeudados: number;
 }
 
+export interface IMoraFiltros {
+    estado?: 'VENCIDO' | 'POR_VENCER' | 'AL_DIA' | undefined;
+    fechaInicio?: string;
+    pagina?: number;
+    limite?: number;
+}
+
+export interface IPaginaMora {
+    items: IMensualidadMora[];
+    total: number;
+    pagina: number;
+    limite: number;
+}
+
 export interface IReporteMora {
     alDia: number;
     porVencer: number;
     vencido: number;
     canceladas: number;
     mesesAdeudados: number;
-    clientes: IMensualidadMora[];
+    clientes: IPaginaMora;
 }
 
 // ---------------------------------------------------------------------------

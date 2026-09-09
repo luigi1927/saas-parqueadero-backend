@@ -14,6 +14,7 @@ import type {
     IReporteSuscripciones,
     IReporteUsoPlataforma,
     IRangoFechas,
+    IMoraFiltros,
 } from '../types/reporte.types.js';
 
 export interface IReporteRepository {
@@ -21,7 +22,7 @@ export interface IReporteRepository {
     obtenerCuadreCaja(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteCuadreCaja>;
     obtenerEgresos(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteEgresos>;
     obtenerOcupacion(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteOcupacion>;
-    obtenerMora(parqueaderoId: number): Promise<IReporteMora>;
+    obtenerMora(parqueaderoId: number, filtros: IMoraFiltros): Promise<IReporteMora>;
     obtenerRecaudoMensualidades(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteRecaudoMensualidades>;
     obtenerDesercion(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteDesercion>;
     obtenerAnulaciones(parqueaderoId: number, rango: IRangoFechas): Promise<IReporteAnulaciones>;

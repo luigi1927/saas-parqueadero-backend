@@ -30,6 +30,7 @@ import type {
     IReporteSuscripciones,
     IReporteUsoPlataforma,
     IUsoPlataformaParqueadero,
+    IMoraFiltros,
 } from '../../domain/types/reporte.types.js';
 
 interface RecaudoRow extends RowDataPacket {
@@ -91,6 +92,7 @@ interface MoraRow extends RowDataPacket {
     telefono: string;
     vencimiento: string;
     estado: string;
+    dias: number;
 }
 
 interface RecaudoMensualidadMetodoRow extends RowDataPacket {
@@ -412,45 +414,71 @@ export class MySQLReporteRepository implements IReporteRepository {
         };
     }
 
-    async obtenerMora(parqueaderoId: number): Promise<IReporteMora> {
+    async obtenerMora(parqueaderoId: number, filtros: IMoraFiltros): Promise<IReporteMora> {
+        const estado = filtros.estado ?? '';
+        const pagina = typeof filtros.pagina === 'number' && Number.isInteger(filtros.pagina) && filtros.pagina > 0 ? filtros.pagina : 1;
+        const limite = typeof filtros.limite === 'number' && Number.isInteger(filtros.limite) && filtros.limite > 0 ? Math.min(filtros.limite, 100) : 20;
+        const desplazamiento = (pagina - 1) * limite;
+
+        const condicionRangoResumen = filtros.fechaInicio ? 'AND fecha_vencimiento >= ?' : '';
+        const condicionRangoLista = filtros.fechaInicio ? 'AND cliente.fecha_vencimiento >= ?' : '';
+        const paramsRango = filtros.fechaInicio ? [filtros.fechaInicio] : [];
+
+        const [resumenRows] = await dbPool.execute<RowDataPacket[]>(`
+            SELECT
+                SUM(estado = 'CANCELADA') AS canceladas,
+                SUM(estado != 'CANCELADA' AND DATEDIFF(CURDATE(), fecha_vencimiento) > 0) AS vencido,
+                SUM(estado != 'CANCELADA' AND DATEDIFF(CURDATE(), fecha_vencimiento) <= 0 AND DATEDIFF(CURDATE(), fecha_vencimiento) > -5) AS porVencer,
+                SUM(estado != 'CANCELADA' AND DATEDIFF(CURDATE(), fecha_vencimiento) <= -5) AS alDia,
+                SUM(CASE WHEN estado != 'CANCELADA' AND DATEDIFF(CURDATE(), fecha_vencimiento) > 0
+                         THEN CEIL(DATEDIFF(CURDATE(), fecha_vencimiento) / 30) ELSE 0 END) AS mesesAdeudados
+            FROM clientes_mensuales
+            WHERE parqueadero_id = ? ${condicionRangoResumen}
+        `, [parqueaderoId, ...paramsRango]);
+        const resumen: Record<string, number | null> = (resumenRows[0] ?? {}) as Record<string, number | null>;
+
+        // El reporte clasifica cada cliente según los días transcurridos desde su vencimiento:
+        //  > 0 → VENCIDO, entre -4 y 0 → POR_VENCER, <= -5 → AL_DIA.
+        const condicionTipo = `
+            (? = '' OR
+             (DATEDIFF(CURDATE(), fecha_vencimiento) > 0 AND ? = 'VENCIDO') OR
+             (DATEDIFF(CURDATE(), fecha_vencimiento) <= 0 AND DATEDIFF(CURDATE(), fecha_vencimiento) > -5 AND ? = 'POR_VENCER') OR
+             (DATEDIFF(CURDATE(), fecha_vencimiento) <= -5 AND ? = 'AL_DIA'))`;
+
         const [rows] = await dbPool.execute<MoraRow[]>(`
             SELECT cliente.id AS clienteId, cliente.placa, cliente.nombre_propietario AS propietario,
-                   cliente.telefono_whatsapp AS telefono, cliente.fecha_vencimiento AS vencimiento, cliente.estado
+                   cliente.telefono_whatsapp AS telefono, cliente.fecha_vencimiento AS vencimiento, cliente.estado,
+                   DATEDIFF(CURDATE(), cliente.fecha_vencimiento) AS dias
             FROM clientes_mensuales cliente
-            WHERE cliente.parqueadero_id = ?
+            WHERE cliente.parqueadero_id = ? AND cliente.estado != 'CANCELADA'
+              ${condicionRangoLista}
+              AND ${condicionTipo}
             ORDER BY cliente.fecha_vencimiento ASC
-        `, [parqueaderoId]);
-        const hoy = new Date();
-        const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-        const cicloDias = 30;
+            LIMIT ${limite} OFFSET ${desplazamiento}
+        `, [parqueaderoId, ...paramsRango, estado, estado, estado, estado]);
 
-        let alDia = 0;
-        let porVencer = 0;
-        let vencido = 0;
-        let canceladas = 0;
-        let mesesAdeudados = 0;
+        const [conteoRows] = await dbPool.execute<RowDataPacket[]>(`
+            SELECT COUNT(*) AS total
+            FROM clientes_mensuales
+            WHERE parqueadero_id = ? AND estado != 'CANCELADA'
+              ${condicionRangoResumen}
+              AND ${condicionTipo}
+        `, [parqueaderoId, ...paramsRango, estado, estado, estado, estado]);
+
         const clientes: IMensualidadMora[] = rows.map((row) => {
-            const dias = Math.floor((new Date(hoyStr).getTime() - new Date(row.vencimiento).getTime()) / 86_400_000);
-            const estado = dias > 0 ? 'VENCIDO' : dias > -5 ? 'POR_VENCER' : 'AL_DIA';
-            if (row.estado === 'CANCELADA') {
-                canceladas++;
-                return null;
-            }
-            if (estado === 'VENCIDO') {
-                vencido++;
-                const meses = Math.ceil(dias / cicloDias);
-                mesesAdeudados += meses;
-                return { ...this.mapearMora(row, estado, dias, meses) };
-            }
-            if (estado === 'POR_VENCER') {
-                porVencer++;
-            } else {
-                alDia++;
-            }
-            return { ...this.mapearMora(row, estado, dias, 0) };
-        }).filter((cliente): cliente is IMensualidadMora => cliente !== null);
+            const dias = row.dias;
+            const tipo = dias > 0 ? 'VENCIDO' : dias > -5 ? 'POR_VENCER' : 'AL_DIA';
+            return this.mapearMora(row, tipo, tipo === 'VENCIDO' ? dias : 0, tipo === 'VENCIDO' ? Math.ceil(dias / 30) : 0);
+        });
 
-        return { alDia, porVencer, vencido, canceladas, mesesAdeudados, clientes };
+        return {
+            alDia: Number(resumen.alDia ?? 0),
+            porVencer: Number(resumen.porVencer ?? 0),
+            vencido: Number(resumen.vencido ?? 0),
+            canceladas: Number(resumen.canceladas ?? 0),
+            mesesAdeudados: Number(resumen.mesesAdeudados ?? 0),
+            clientes: { items: clientes, total: Number(conteoRows[0]?.total ?? 0), pagina, limite }
+        };
     }
 
     private mapearMora(row: MoraRow, tipo: IMensualidadMora['tipo'], diasVencido: number, mesesAdeudados: number): IMensualidadMora {

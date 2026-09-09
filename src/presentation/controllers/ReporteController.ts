@@ -4,6 +4,7 @@ import { MySQLReporteRepository } from '../../infrastructure/repositories/MySQLR
 import { ConsultarAuditoriaUseCase } from '../../application/use-cases/ConsultarAuditoriaUseCase.js';
 import { MySQLAuditoriaRepository } from '../../infrastructure/repositories/MySQLAuditoriaRepository.js';
 import { ConsultarReporteOperativoUseCase } from '../../application/use-cases/ConsultarReporteOperativoUseCase.js';
+import type { IMoraFiltros } from '../../domain/types/reporte.types.js';
 
 const useCase = new ConsultarReporteRecaudoUseCase(new MySQLReporteRepository());
 const operativoUseCase = new ConsultarReporteOperativoUseCase(new MySQLReporteRepository());
@@ -37,7 +38,27 @@ export class ReporteController {
 
     static async mora(req: Request, res: Response): Promise<void> {
         try {
-            res.status(200).json({ data: await operativoUseCase.mora(req.user!.parqueaderoId) });
+            const estado = typeof req.query.estado === 'string' ? req.query.estado : undefined;
+            if (estado !== undefined && !['AL_DIA', 'POR_VENCER', 'VENCIDO'].includes(estado)) {
+                res.status(400).json({ error: 'El estado de mora no es válido.' });
+                return;
+            }
+            const fechaInicio = typeof req.query.fechaInicio === 'string' ? req.query.fechaInicio : undefined;
+            if (fechaInicio !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
+                res.status(400).json({ error: 'La fecha de inicio no es válida.' });
+                return;
+            }
+            const pagina = Number(req.query.pagina ?? 1);
+            const limite = Number(req.query.limite ?? 20);
+            const filtrosMora: IMoraFiltros = {
+                estado: estado as 'AL_DIA' | 'POR_VENCER' | 'VENCIDO' | undefined,
+                pagina,
+                limite
+            };
+            if (fechaInicio !== undefined) filtrosMora.fechaInicio = fechaInicio;
+            res.status(200).json({
+                data: await operativoUseCase.mora(req.user!.parqueaderoId, filtrosMora)
+            });
         } catch (error: unknown) {
             res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible generar el reporte.' });
         }

@@ -1,5 +1,5 @@
 import type { IReporteRepository } from '../../domain/repositories/IReporteRepository.js';
-import type { IRangoFechas } from '../../domain/types/reporte.types.js';
+import type { IRangoFechas, IMoraFiltros } from '../../domain/types/reporte.types.js';
 import { validarRangoFechas } from './validarRangoFechas.js';
 
 /**
@@ -21,8 +21,8 @@ export class ConsultarReporteOperativoUseCase {
         return this.reporteRepository.obtenerOcupacion(parqueaderoId, this.rango(fechaInicio, fechaFin));
     }
 
-    mora(parqueaderoId: number) {
-        return this.reporteRepository.obtenerMora(parqueaderoId);
+    mora(parqueaderoId: number, filtros: IMoraFiltros) {
+        return this.reporteRepository.obtenerMora(parqueaderoId, filtros);
     }
 
     recaudoMensualidades(parqueaderoId: number, fechaInicio: string, fechaFin: string) {
