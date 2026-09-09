@@ -75,6 +75,7 @@ export interface ITicketRepository {
     crearTicket(ticket: ITicket): Promise<number>;
     finalizarTicket(datos: {
         ticketId: number;
+        parqueaderoId: number;
         subtotalBase: number;
         recargoNocturnoAplicado: number;
         aplicoNocturno: boolean;

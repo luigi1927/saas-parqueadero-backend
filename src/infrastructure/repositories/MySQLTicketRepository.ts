@@ -145,6 +145,7 @@ export class MySQLTicketRepository implements ITicketRepository {
 
   async finalizarTicket(datos: {
     ticketId: number;
+    parqueaderoId: number;
     subtotalBase: number;
     recargoNocturnoAplicado: number;
     aplicoNocturno: boolean;
@@ -164,7 +165,7 @@ export class MySQLTicketRepository implements ITicketRepository {
           metodo_pago = ?,
           turno_salida_id = ?,
           estado = 'FINALIZADO'
-      WHERE id = ? AND estado = 'ACTIVO'
+      WHERE id = ? AND parqueadero_id = ? AND estado = 'ACTIVO'
     `;
 
     const [result] = await dbPool.execute<ResultSetHeader>(query, [
@@ -174,7 +175,8 @@ export class MySQLTicketRepository implements ITicketRepository {
       datos.totalPagado,
       datos.metodoPago,
       datos.turnoSalidaId,
-      datos.ticketId
+      datos.ticketId,
+      datos.parqueaderoId
     ]);
 
     if (result.affectedRows === 0) {

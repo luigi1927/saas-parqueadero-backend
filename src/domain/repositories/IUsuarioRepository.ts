@@ -42,6 +42,7 @@ export interface IUsuarioRepository {
     cambiarEstadoOperario(parqueaderoId: number, operarioId: number, administradorId: number, estado: 'ACTIVO' | 'INACTIVO', motivo: string): Promise<void>;
     actualizarDatosPropios(usuarioId: number, parqueaderoId: number, datos: IActualizarAdministradorPropioDTO): Promise<void>;
     registrarCodigoRecuperacion(usuarioId: number, codigoHash: string, expiraEn: Date, ip?: string | null): Promise<number>;
+    eliminarCodigosExpirados(usuarioId: number): Promise<void>;
     leerCodigoRecuperacionActivo(usuarioId: number): Promise<{ id: number; codigoHash: string; expiracion: Date; consumido: number } | null>;
     marcarCodigoConsumido(codigoId: number): Promise<void>;
     restablecerPin(usuarioId: number, pinHash: string): Promise<void>;

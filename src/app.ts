@@ -88,6 +88,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { obtenerJwtSecret } from './infrastructure/config/env.config.js';
 import { checkDatabaseConnection, verificarConexionBaseDatos } from './infrastructure/database/mysql.config.js';
 import { whatsappService } from './infrastructure/services/whatsappInstance.js';
 import { MySQLTicketRepository } from './infrastructure/repositories/MySQLTicketRepository.js';
@@ -119,6 +120,9 @@ import calendarioHabilRoutes from './presentation/routes/calendarioHabil.routes.
 
 import whatsappRoutes from './presentation/routes/whatsapp.routes.js';
 dotenv.config();
+
+// Falla rápido si el secreto JWT no es seguro (evita despliegues con 'secret_key' o sin clave).
+obtenerJwtSecret();
 
 const app: Application = express();
 const httpServer = createServer(app);

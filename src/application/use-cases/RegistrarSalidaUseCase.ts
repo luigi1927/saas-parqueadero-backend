@@ -28,6 +28,9 @@ export class RegistrarSalidaUseCase {
         }
 
         if (!ticket) throw new Error('El ticket no existe.');
+        if (ticket.parqueaderoId !== dto.parqueaderoId) {
+            throw new Error('El ticket no pertenece a este parqueadero.');
+        }
         if (ticket.estado !== 'ACTIVO') {
             throw new Error(`El ticket ya se encuentra en estado ${ticket.estado}.`);
         }
@@ -57,6 +60,7 @@ export class RegistrarSalidaUseCase {
         // 4. Guardar salida en BDD
         await this.ticketRepository.finalizarTicket({
             ticketId: ticket.id,
+            parqueaderoId: dto.parqueaderoId,
             subtotalBase: calculo.subtotalBase,
             recargoNocturnoAplicado: calculo.recargoNocturnoAplicado,
             aplicoNocturno: calculo.aplicoNocturno,

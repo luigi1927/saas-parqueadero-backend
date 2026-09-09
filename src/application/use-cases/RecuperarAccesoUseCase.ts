@@ -45,15 +45,22 @@ export class RecuperarAccesoUseCase {
             return;
         }
 
+        if (!this.whatsAppService.estaConectado()) {
+            throw new Error('El servicio de WhatsApp no está conectado. Inténtalo de nuevo más tarde.');
+        }
+
+        // Cooldown por cuenta: si ya existe un código vigente sin consumir, no se reenvía otro.
+        await this.usuarioRepository.eliminarCodigosExpirados(cuenta.id!);
+        const codigoVigente = await this.usuarioRepository.leerCodigoRecuperacionActivo(cuenta.id!);
+        if (codigoVigente && codigoVigente.consumido === 0 && new Date(codigoVigente.expiracion) > new Date()) {
+            return;
+        }
+
         const codigo = String(randomInt(100000, 1000000));
         const expiraEn = new Date(Date.now() + VIGENCIA_MINUTOS * 60_000);
         const codigoHash = await bcrypt.hash(codigo, 10);
 
         await this.usuarioRepository.registrarCodigoRecuperacion(cuenta.id!, codigoHash, expiraEn, datos.ip ?? null);
-
-        if (!this.whatsAppService.estaConectado()) {
-            throw new Error('El servicio de WhatsApp no está conectado. Inténtalo de nuevo más tarde.');
-        }
 
         await this.whatsAppService.enviarCodigoRecuperacion({
             telefono,

@@ -180,6 +180,12 @@ export class MySQLUsuarioRepository implements IUsuarioRepository {
         };
     }
 
+    async eliminarCodigosExpirados(usuarioId: number): Promise<void> {
+        await dbPool.execute<ResultSetHeader>(`
+            DELETE FROM codigos_recuperacion WHERE usuario_id = ? AND expiracion <= NOW()
+        `, [usuarioId]);
+    }
+
     async marcarCodigoConsumido(codigoId: number): Promise<void> {
         await dbPool.execute<ResultSetHeader>(`
             UPDATE codigos_recuperacion SET consumido = 1, usado_en = NOW() WHERE id = ?

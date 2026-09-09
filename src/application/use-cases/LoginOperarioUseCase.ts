@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { IUsuario, IUsuarioRepository } from '../../domain/repositories/IUsuarioRepository.js';
+import { obtenerJwtExpiraEn, obtenerJwtSecret } from '../../infrastructure/config/env.config.js';
 
 interface LoginInput {
     parqueaderoId: number | null;
@@ -126,8 +127,8 @@ export class LoginOperarioUseCase {
                 rolId: usuario.rolId,
                 rolNombre: usuario.rolNombre
             },
-            process.env.JWT_SECRET || 'secret_key',
-            { expiresIn: '8h' }
+            obtenerJwtSecret(),
+            { expiresIn: obtenerJwtExpiraEn() as NonNullable<jwt.SignOptions['expiresIn']> }
         );
 
         return {

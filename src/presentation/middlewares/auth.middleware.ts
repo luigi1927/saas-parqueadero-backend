@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import type { RowDataPacket } from 'mysql2';
 import { dbPool } from '../../infrastructure/database/mysql.config.js';
+import { obtenerJwtSecret } from '../../infrastructure/config/env.config.js';
 
 interface JwtPayload {
     usuarioId: number;
@@ -10,7 +11,14 @@ interface JwtPayload {
     rolNombre: 'SUPER_ADMIN' | 'ADMIN_PARQUEADERO' | 'OPERARIO' | 'CLIENTE';
 }
 
-export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
+interface UsuarioSesionRow extends RowDataPacket {
+    estado: 'ACTIVO' | 'INACTIVO' | 'BLOQUEADO';
+    parqueaderoId: number | null;
+    rolId: number;
+    rolNombre: 'SUPER_ADMIN' | 'ADMIN_PARQUEADERO' | 'OPERARIO' | 'CLIENTE';
+}
+
+export const authenticateToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer TOKEN"
 
@@ -20,14 +28,43 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     }
 
     try {
-        const secret = process.env.JWT_SECRET || 'secret_key';
-        const decoded = jwt.verify(token, secret) as JwtPayload;
+        const decoded = jwt.verify(token, obtenerJwtSecret()) as JwtPayload;
 
-        // Inyectamos los datos del usuario logueado en el objeto Request
-        req.user = decoded;
+        // Validación de sesión vigente: la cuenta debe seguir ACTIVA y con el mismo rol.
+        // Esto revoca tokens de usuarios bloqueados/inactivos o con permisos cambiados.
+        const [rows] = await dbPool.execute<UsuarioSesionRow[]>(`
+            SELECT usuario.estado, usuario.parqueadero_id AS parqueaderoId,
+                   usuario.rol_id AS rolId, rol.nombre AS rolNombre
+            FROM usuarios usuario
+            INNER JOIN roles rol ON rol.id = usuario.rol_id
+            WHERE usuario.id = ?
+            LIMIT 1
+        `, [decoded.usuarioId]);
+
+        const usuarioSesion = rows[0];
+        if (!usuarioSesion || usuarioSesion.estado !== 'ACTIVO') {
+            res.status(403).json({ error: 'Tu cuenta no está activa o fue bloqueada. Vuelve a iniciar sesión.' });
+            return;
+        }
+        if (usuarioSesion.rolNombre !== decoded.rolNombre) {
+            res.status(403).json({ error: 'Tus permisos cambiaron. Vuelve a iniciar sesión.' });
+            return;
+        }
+
+        // Inyectamos los datos vigentes del usuario logueado en el objeto Request
+        req.user = {
+            usuarioId: decoded.usuarioId,
+            parqueaderoId: usuarioSesion.parqueaderoId ?? 0,
+            rolId: usuarioSesion.rolId,
+            rolNombre: usuarioSesion.rolNombre
+        };
         next();
     } catch (error) {
-        res.status(403).json({ error: 'Token inválido o expirado.' });
+        if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+            res.status(403).json({ error: 'Token inválido o expirado.' });
+            return;
+        }
+        next(error);
     }
 };
 
