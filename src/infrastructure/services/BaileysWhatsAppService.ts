@@ -358,6 +358,21 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `Vigencia hasta: *${fechaVencimiento}*\n\n` +
             `Gracias por preferir *${datos.nombreParqueadero}*.`;
         await this.enviarTextoConMapeoTelefono(datos.telefono, mensaje);
+
+        if (datos.codigoQr?.trim()) {
+            try {
+                const urlQr = `https://tu-dominio-parqueadero.com/mensualidad/${datos.codigoQr}`;
+                const qrBuffer = await QRCodeBase64.toBuffer(urlQr, { type: 'png', width: 300, margin: 2 });
+                await this.sock.sendMessage(this.formatearJid(datos.telefono), {
+                    image: qrBuffer,
+                    caption: `🔖 *QR DE TU MENSUALIDAD - PLACA ${datos.placa}*\n\n` +
+                        `Guarda este código: al escanearlo, el sistema te indica si el vehículo está *dentro* del parqueadero o si ya salió, junto con la vigencia de tu mensualidad.`
+                });
+            } catch (error: unknown) {
+                console.error('No fue posible enviar el QR de la mensualidad.', error);
+            }
+        }
+
         return true;
     }
 

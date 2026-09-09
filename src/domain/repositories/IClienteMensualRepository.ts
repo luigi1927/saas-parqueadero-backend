@@ -2,8 +2,9 @@ import type {
     IClienteMensual,
     IPagoMensualidad,
     ICrearClienteMensualDTO,
-    IRegistrarPagoMensualidadDTO
-    , IClienteMensualDetalle
+    IRegistrarPagoMensualidadDTO,
+    IClienteMensualDetalle,
+    IClienteMensualQr
 } from '../types/clienteMensual.types.js';
 import type { IPeriodoMensualidad } from '../services/CalcularPeriodoMensualidad.js';
 
@@ -12,6 +13,7 @@ export interface IClienteMensualRepository {
     buscarPorId(id: number, parqueaderoId: number): Promise<IClienteMensual | null>;
     obtenerDetalle(id: number, parqueaderoId: number): Promise<IClienteMensualDetalle | null>;
     buscarPorPlaca(placa: string, parqueaderoId: number): Promise<IClienteMensual | null>;
+    buscarPorCodigoQr(codigoQr: string): Promise<IClienteMensualQr | null>;
     obtenerNombreParqueadero(parqueaderoId: number): Promise<string>;
     tieneAccesoMensual(placa: string, parqueaderoId: number): Promise<boolean>;
     actualizarCliente(id: number, parqueaderoId: number, usuarioId: number, datos: import('../types/clienteMensual.types.js').IActualizarClienteMensualDTO): Promise<IClienteMensual>;

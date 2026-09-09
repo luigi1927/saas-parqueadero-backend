@@ -65,6 +65,7 @@ export interface DTOBienvenidaMensualidad {
     monto: number;
     diaPagoMensual: number;
     fechaVencimiento: Date;
+    codigoQr: string;
 }
 
 export interface DTOCodigoRecuperacion {

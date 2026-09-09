@@ -5,6 +5,7 @@ export interface ClienteRow extends RowDataPacket {
     parqueadero_id: number;
     usuario_id: number | null;
     placa: string;
+    codigo_qr: string | null;
     nombre_propietario: string;
     tratamiento: 'SR' | 'SRA' | 'NEUTRO' | null;
     telefono_whatsapp: string;

@@ -2,6 +2,7 @@ export interface IClienteMensual {
     id: number;
     parqueaderoId: number;
     placa: string;
+    codigoQr?: string | undefined;
     nombreCliente: string;
     tratamiento?: TratamientoCliente | undefined;
     telefono?: string | undefined;
@@ -29,6 +30,36 @@ export type MetodoPagoMensualidad = 'EFECTIVO' | 'WOMPI_PSE' | 'WOMPI_TARJETA' |
 export type CanalRenovacion = 'FISICO' | 'WHATSAPP';
 export type EstadoIntencionPagoMensualidad = 'PENDIENTE_SELECCION' | 'PENDIENTE_PAGO_DIGITAL' | 'PENDIENTE_PAGO_PRESENCIAL' | 'PENDIENTE_VERIFICACION' | 'PAGADA' | 'RECHAZADA' | 'CANCELADA' | 'EXPIRADA';
 export type TipoNotificacionMensualidad = 'POR_VENCER_3_DIAS' | 'POR_VENCER_2_DIAS' | 'POR_VENCER_1_DIA' | 'VENCIDA_DIA_1' | 'VENCIDA_DIA_2' | 'VENCIDA_DIA_3' | 'VENCIDA_DIA_4' | 'VENCIDA_DIA_5' | 'RENOVADA';
+
+export interface IClienteMensualQr {
+    id: number;
+    parqueaderoId: number;
+    placa: string;
+    nombreCliente: string;
+    tratamiento?: TratamientoCliente | undefined;
+    fechaVencimiento: Date;
+    estado: 'AL_DIA' | 'POR_VENCER' | 'VENCIDO' | 'CANCELADA';
+    nombreParqueadero: string;
+}
+
+export interface IConsultaEstadoMensualidadQr {
+    placa: string;
+    nombreCliente: string;
+    tratamiento?: TratamientoCliente | undefined;
+    parqueaderoId: number;
+    nombreParqueadero: string;
+    fechaVencimiento: Date;
+    estadoMensualidad: 'AL_DIA' | 'POR_VENCER' | 'VENCIDO' | 'CANCELADA';
+    mensualidadVigente: boolean;
+    vehiculo: {
+        estado: 'DENTRO' | 'FUERA';
+        ticketActivo?: {
+            ticketId: number;
+            fechaEntrada: Date;
+            tipoVehiculo: 'OCASIONAL' | 'MENSUAL';
+        } | undefined;
+    };
+}
 
 export interface IIntencionPagoMensualidad {
     id: number;

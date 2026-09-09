@@ -9,22 +9,24 @@ import type {
     IPaginaMensualidades,
     IResumenMensualidades,
     IReciboMensualidad,
-    IClienteMensualDetalle
+    IClienteMensualDetalle,
+    IClienteMensualQr
 } from '../../domain/types/clienteMensual.types.js';
 import { dbPool } from '../database/mysql.config.js';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import type { ClienteRow, PagoRow } from '../types/mensual-mysql.types.js';
 import type { IPeriodoMensualidad } from '../../domain/services/CalcularPeriodoMensualidad.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export class MySQLClienteMensualRepository implements IClienteMensualRepository {
 
     async crearCliente(datos: ICrearClienteMensualDTO): Promise<IClienteMensual> {
         const query = `
       INSERT INTO clientes_mensuales (
-                parqueadero_id, placa, nombre_propietario, tratamiento, telefono_whatsapp,
+                parqueadero_id, placa, codigo_qr, nombre_propietario, tratamiento, telefono_whatsapp,
         documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'AL_DIA')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AL_DIA')
     `;
 
         const fechaInicio = datos.fechaInicioContrato ? new Date(datos.fechaInicioContrato) : new Date();
@@ -35,6 +37,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
         const [result] = await dbPool.execute<ResultSetHeader>(query, [
             datos.parqueaderoId,
             datos.placa.toUpperCase().trim(),
+            uuidv4(),
             datos.nombreCliente.trim(),
             datos.tratamiento,
             datos.telefono ?? '',
@@ -50,7 +53,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
 
     async buscarPorId(id: number, parqueaderoId: number): Promise<IClienteMensual | null> {
         const query = `
-    SELECT id, parqueadero_id, usuario_id, placa, nombre_propietario, tratamiento,
+    SELECT id, parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento,
              telefono_whatsapp, documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado, creado_en
       FROM clientes_mensuales
       WHERE id = ? AND parqueadero_id = ?
@@ -63,7 +66,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
 
     async obtenerDetalle(id: number, parqueaderoId: number): Promise<IClienteMensualDetalle | null> {
         const [rows] = await dbPool.execute<RowDataPacket[]>(`
-            SELECT cliente.id, cliente.parqueadero_id, cliente.placa, cliente.nombre_propietario,
+            SELECT cliente.id, cliente.parqueadero_id, cliente.placa, cliente.codigo_qr, cliente.nombre_propietario,
                    cliente.tratamiento, cliente.telefono_whatsapp, cliente.documento_identidad,
                    cliente.dia_pago_mensual, cliente.fecha_inicio, cliente.fecha_vencimiento,
                    cliente.estado, cliente.creado_en, parqueadero.nombre_comercial,
@@ -94,7 +97,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
 
     async buscarPorPlaca(placa: string, parqueaderoId: number): Promise<IClienteMensual | null> {
         const query = `
-    SELECT id, parqueadero_id, usuario_id, placa, nombre_propietario, tratamiento,
+    SELECT id, parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento,
              telefono_whatsapp, documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado, creado_en
       FROM clientes_mensuales
       WHERE placa = ? AND parqueadero_id = ?
@@ -103,6 +106,30 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
         const [rows] = await dbPool.execute<ClienteRow[]>(query, [placa.toUpperCase().trim(), parqueaderoId]);
         if (!rows[0]) return null;
         return this.mapearCliente(rows[0]);
+    }
+
+    async buscarPorCodigoQr(codigoQr: string): Promise<IClienteMensualQr | null> {
+        const [rows] = await dbPool.execute<RowDataPacket[]>(`
+            SELECT cliente.id, cliente.parqueadero_id, cliente.placa, cliente.nombre_propietario,
+                   cliente.tratamiento, cliente.fecha_vencimiento, cliente.estado,
+                   parqueadero.nombre_comercial
+            FROM clientes_mensuales cliente
+            INNER JOIN parqueaderos parqueadero ON parqueadero.id = cliente.parqueadero_id
+            WHERE cliente.codigo_qr = ?
+            LIMIT 1
+        `, [codigoQr.trim()]);
+        const fila = rows[0];
+        if (!fila) return null;
+        return {
+            id: fila.id,
+            parqueaderoId: fila.parqueadero_id,
+            placa: fila.placa,
+            nombreCliente: fila.nombre_propietario,
+            tratamiento: fila.tratamiento ?? undefined,
+            fechaVencimiento: new Date(fila.fecha_vencimiento),
+            estado: fila.estado,
+            nombreParqueadero: fila.nombre_comercial
+        };
     }
 
     async obtenerNombreParqueadero(parqueaderoId: number): Promise<string> {
@@ -225,7 +252,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
 
     async listarPorParqueadero(parqueaderoId: number): Promise<IClienteMensual[]> {
         const query = `
-    SELECT id, parqueadero_id, usuario_id, placa, nombre_propietario, tratamiento,
+    SELECT id, parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento,
              telefono_whatsapp, documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado, creado_en
       FROM clientes_mensuales
       WHERE parqueadero_id = ?
@@ -247,7 +274,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
             AND (? IS NULL OR estado = ?)
         `;
         const [rows] = await dbPool.execute<ClienteRow[]>(`
-            SELECT id, parqueadero_id, usuario_id, placa, nombre_propietario, tratamiento,
+            SELECT id, parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento,
                    telefono_whatsapp, documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado, creado_en
             FROM clientes_mensuales
             WHERE ${condicion}
@@ -345,14 +372,15 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
             await connection.beginTransaction();
             const queryCliente = `
           INSERT INTO clientes_mensuales (
-                    parqueadero_id, usuario_id, placa, nombre_propietario, tratamiento, telefono_whatsapp,
+                    parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento, telefono_whatsapp,
                 documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AL_DIA')
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AL_DIA')
         `;
             const [result] = await connection.execute<ResultSetHeader>(queryCliente, [
                 datos.parqueaderoId,
                 usuarioId,
                 datos.placa.toUpperCase().trim(),
+                uuidv4(),
                 datos.nombreCliente.trim(),
                 datos.tratamiento,
                 datos.telefono ?? '',
@@ -538,6 +566,7 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
             id: fila.id,
             parqueaderoId: fila.parqueadero_id,
             placa: fila.placa,
+            codigoQr: fila.codigo_qr ?? undefined,
             nombreCliente: fila.nombre_propietario,
             tratamiento: fila.tratamiento ?? undefined,
             telefono: fila.telefono_whatsapp,

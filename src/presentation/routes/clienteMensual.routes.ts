@@ -4,6 +4,10 @@ import { authenticateToken, requireParqueaderoOperativo, requireRoles } from '..
 
 const router = Router();
 
+// Ruta pública: consultar estado del vehículo de una mensualidad mediante su QR.
+// Debe registrarse antes del middleware de autenticación.
+router.get('/qr/:codigoQr', ClienteMensualController.consultarEstadoPorQr);
+
 router.use(authenticateToken, requireParqueaderoOperativo);
 
 router.get('/resumen', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.resumen);

@@ -65,7 +65,8 @@ export class RegistrarClienteMensualUseCase {
                 fechaPago: new Date(),
                 monto: tarifa.precioMensualidad,
                 diaPagoMensual: diaPago,
-                fechaVencimiento: periodo.fechaVencimiento
+                fechaVencimiento: periodo.fechaVencimiento,
+                codigoQr: cliente.codigoQr ?? ''
             });
         } catch (error: unknown) {
             console.error('No fue posible enviar la bienvenida de mensualidad.', error);

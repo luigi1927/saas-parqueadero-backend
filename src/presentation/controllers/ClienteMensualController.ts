@@ -11,6 +11,7 @@ import { ConsultarTrazabilidadMensualidadUseCase } from '../../application/use-c
 import { MySQLTrazabilidadMensualidadRepository } from '../../infrastructure/repositories/MySQLTrazabilidadMensualidadRepository.js';
 import { ReintentarNotificacionMensualidadUseCase } from '../../application/use-cases/ReintentarNotificacionMensualidadUseCase.js';
 import { MySQLNotificacionMensualidadRepository } from '../../infrastructure/repositories/MySQLNotificacionMensualidadRepository.js';
+import { ConsultarEstadoMensualidadQrUseCase } from '../../application/use-cases/ConsultarEstadoMensualidadQrUseCase.js';
 
 const clienteRepository = new MySQLClienteMensualRepository();
 const turnoRepository = new MySQLTurnoRepository();
@@ -22,8 +23,23 @@ const registrarPagoUseCase = new RegistrarPagoMensualidadUseCase(clienteReposito
 const gestionarClienteUseCase = new GestionarClienteMensualUseCase(clienteRepository, ticketRepository);
 const trazabilidadUseCase = new ConsultarTrazabilidadMensualidadUseCase(new MySQLTrazabilidadMensualidadRepository());
 const reintentarNotificacionUseCase = new ReintentarNotificacionMensualidadUseCase(new MySQLNotificacionMensualidadRepository());
+const consultarEstadoQrUseCase = new ConsultarEstadoMensualidadQrUseCase(clienteRepository, ticketRepository);
 
 export class ClienteMensualController {
+
+    static async consultarEstadoPorQr(req: Request, res: Response): Promise<void> {
+        try {
+            const { codigoQr } = req.params as Record<string, string>;
+            if (!codigoQr?.trim()) {
+                res.status(400).json({ error: 'Código QR requerido.' });
+                return;
+            }
+            const resultado = await consultarEstadoQrUseCase.ejecutar(codigoQr.trim());
+            res.status(200).json({ data: resultado });
+        } catch (error: unknown) {
+            res.status(404).json({ error: error instanceof Error ? error.message : 'No fue posible consultar el estado de la mensualidad.' });
+        }
+    }
 
     static async reintentarNotificacion(req: Request, res: Response): Promise<void> {
         try {
