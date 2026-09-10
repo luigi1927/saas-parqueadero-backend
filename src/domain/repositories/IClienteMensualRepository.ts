@@ -11,6 +11,7 @@ import type { IPeriodoMensualidad } from '../services/CalcularPeriodoMensualidad
 export interface IClienteMensualRepository {
     crearCliente(datos: ICrearClienteMensualDTO): Promise<IClienteMensual>;
     buscarPorId(id: number, parqueaderoId: number): Promise<IClienteMensual | null>;
+    buscarPorUsuarioId(usuarioId: number): Promise<IClienteMensual | null>;
     obtenerDetalle(id: number, parqueaderoId: number): Promise<IClienteMensualDetalle | null>;
     buscarPorPlaca(placa: string, parqueaderoId: number): Promise<IClienteMensual | null>;
     buscarPorCodigoQr(codigoQr: string): Promise<IClienteMensualQr | null>;

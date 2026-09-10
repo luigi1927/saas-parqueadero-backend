@@ -14,6 +14,9 @@ router.post('/login-super-admin', loginLimiter, AuthController.loginSuperAdmin);
 router.post('/recuperar-codigo', solicitarCodigoLimiter, AuthController.solicitarCodigoRecuperacion);
 router.post('/recuperar-confirmar', confirmarCodigoLimiter, AuthController.confirmarRestablecimientoPin);
 
+// Cambio voluntario de PIN (sesión iniciada)
+router.post('/cambiar-pin', authenticateToken, AuthController.cambiarPin);
+
 // Ruta protegida de prueba
 router.get('/perfil', authenticateToken, (req: Request, res: Response) => {
     res.status(200).json({

@@ -17,4 +17,17 @@ router.get(
     WhatsAppConfigController.obtenerQr
 );
 
+/**
+ * POST /api/v1/whatsapp/desvincular
+ * Desvincula el número actual y genera un nuevo código QR
+ * Requerido: ADMIN_PARQUEADERO
+ */
+router.post(
+    '/desvincular',
+    authenticateToken,
+    requireParqueaderoOperativo,
+    requireRoles('ADMIN_PARQUEADERO'),
+    WhatsAppConfigController.desvincular
+);
+
 export default router;

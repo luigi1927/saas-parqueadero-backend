@@ -64,6 +64,19 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
         return this.mapearCliente(rows[0]);
     }
 
+    async buscarPorUsuarioId(usuarioId: number): Promise<IClienteMensual | null> {
+        const query = `
+    SELECT id, parqueadero_id, usuario_id, placa, codigo_qr, nombre_propietario, tratamiento,
+             telefono_whatsapp, documento_identidad, dia_pago_mensual, fecha_inicio, fecha_vencimiento, estado, creado_en
+      FROM clientes_mensuales
+      WHERE usuario_id = ?
+      LIMIT 1
+    `;
+        const [rows] = await dbPool.execute<ClienteRow[]>(query, [usuarioId]);
+        if (!rows[0]) return null;
+        return this.mapearCliente(rows[0]);
+    }
+
     async obtenerDetalle(id: number, parqueaderoId: number): Promise<IClienteMensualDetalle | null> {
         const [rows] = await dbPool.execute<RowDataPacket[]>(`
             SELECT cliente.id, cliente.parqueadero_id, cliente.placa, cliente.codigo_qr, cliente.nombre_propietario,

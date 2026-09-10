@@ -33,6 +33,27 @@ export class MySQLTicketRepository implements ITicketRepository {
       && Number(capacidad.vehiculos_activos) < Number(capacidad.limite_motos);
   }
 
+  async obtenerOcupacionActual(parqueaderoId: number): Promise<{ activos: number; capacidad: number }> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT COALESCE(MAX(plan.limite_motos), 0) AS capacidad,
+             COUNT(ticket.id) AS activos
+      FROM suscripciones_parqueadero suscripcion
+      INNER JOIN planes_saas plan ON plan.id = suscripcion.plan_id
+      LEFT JOIN tickets ticket
+        ON ticket.parqueadero_id = suscripcion.parqueadero_id AND ticket.estado = 'ACTIVO'
+      WHERE suscripcion.parqueadero_id = ?
+        AND suscripcion.id = (
+          SELECT ultima.id
+          FROM suscripciones_parqueadero ultima
+          WHERE ultima.parqueadero_id = suscripcion.parqueadero_id
+          ORDER BY ultima.id DESC
+          LIMIT 1
+        )
+    `, [parqueaderoId]);
+    const fila = rows[0];
+    return { activos: Number(fila?.activos ?? 0), capacidad: Number(fila?.capacidad ?? 0) };
+  }
+
   async buscarTurnoAbierto(parqueaderoId: number, usuarioId: number): Promise<number | null> {
     const query = `
       SELECT id FROM turnos_caja 

@@ -41,6 +41,67 @@ export class ClienteMensualController {
         }
     }
 
+    // GET /api/v1/clientes-mensuales/mi-mensualidad
+    // Autoservicio del rol CLIENTE: devuelve su mensualidad, estado, pagos y ticket activo del día.
+    static async miMensualidad(req: Request, res: Response): Promise<void> {
+        try {
+            const usuarioId = req.user!.usuarioId;
+            const cliente = await clienteRepository.buscarPorUsuarioId(usuarioId);
+            if (!cliente) {
+                res.status(404).json({ error: 'No tienes una mensualidad asociada a esta cuenta.' });
+                return;
+            }
+
+            const [pagos, ticketActivo, nombreParqueadero] = await Promise.all([
+                clienteRepository.listarPagosPorCliente(cliente.id, cliente.parqueaderoId),
+                ticketRepository.buscarTicketActivoPorPlaca(cliente.parqueaderoId, cliente.placa),
+                clienteRepository.obtenerNombreParqueadero(cliente.parqueaderoId),
+            ]);
+
+            const hoy = new Date();
+            const vencimiento = new Date(cliente.fechaVencimiento);
+            let estadoCalculado: 'AL_DIA' | 'POR_VENCER' | 'VENCIDO' | 'CANCELADA' = cliente.estado;
+            if (cliente.estado !== 'CANCELADA') {
+                const diasRestantes = Math.ceil((vencimiento.getTime() - hoy.getTime()) / 86400000);
+                estadoCalculado = diasRestantes < 0 ? 'VENCIDO' : diasRestantes <= 3 ? 'POR_VENCER' : 'AL_DIA';
+            }
+
+            res.status(200).json({
+                data: {
+                    cliente: {
+                        id: cliente.id,
+                        placa: cliente.placa,
+                        codigoQr: cliente.codigoQr,
+                        nombreCliente: cliente.nombreCliente,
+                        tratamiento: cliente.tratamiento,
+                        telefono: cliente.telefono,
+                        fechaVencimiento: cliente.fechaVencimiento,
+                        diaPagoMensual: cliente.diaPagoMensual,
+                        parqueaderoId: cliente.parqueaderoId,
+                    },
+                    nombreParqueadero,
+                    estadoMensualidad: estadoCalculado,
+                    ticketActivo: ticketActivo ? {
+                        id: ticketActivo.id,
+                        placa: ticketActivo.placa,
+                        codigoQr: ticketActivo.codigoQr,
+                        fechaEntrada: ticketActivo.fechaEntrada,
+                        tipoVehiculo: ticketActivo.tipoVehiculo,
+                    } : null,
+                    pagos: pagos.slice(0, 6).map((pago) => ({
+                        id: pago.id,
+                        monto: pago.monto,
+                        metodoPago: pago.metodoPago,
+                        fechaPago: pago.fechaPago,
+                        periodoPagadoFin: pago.periodoPagadoFin,
+                    })),
+                },
+            });
+        } catch (error: unknown) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible consultar tu mensualidad.' });
+        }
+    }
+
     static async reintentarNotificacion(req: Request, res: Response): Promise<void> {
         try {
             await reintentarNotificacionUseCase.ejecutar(Number(req.params.notificacionId), req.user!.parqueaderoId);

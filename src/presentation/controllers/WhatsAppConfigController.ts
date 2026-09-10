@@ -22,4 +22,20 @@ export class WhatsAppConfigController {
             });
         }
     }
+
+    /**
+     * POST /api/v1/whatsapp/desvincular
+     * Cierra la sesión de WhatsApp, borra las credenciales locales
+     * y reinicia la conexión para mostrar un código QR nuevo.
+     */
+    static async desvincular(_req: Request, res: Response): Promise<void> {
+        try {
+            await whatsappService.desvincular();
+            res.status(200).json({ data: { ok: true } });
+        } catch (error: unknown) {
+            res.status(500).json({
+                error: error instanceof Error ? error.message : 'No fue posible desvincular WhatsApp'
+            });
+        }
+    }
 }

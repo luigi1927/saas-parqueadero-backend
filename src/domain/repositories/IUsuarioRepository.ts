@@ -23,6 +23,12 @@ export interface IRegistrarOperarioDTO {
     pinHash: string;
 }
 
+export interface IActualizarOperarioDTO {
+    nombre: string;
+    telefono: string;
+    email?: string | undefined;
+}
+
 export interface IActualizarAdministradorPropioDTO {
     nombre: string;
     telefono: string;
@@ -40,6 +46,8 @@ export interface IUsuarioRepository {
     listarPorParqueadero(parqueaderoId: number): Promise<IUsuario[]>;
     registrarOperario(parqueaderoId: number, administradorId: number, datos: IRegistrarOperarioDTO): Promise<IUsuario>;
     cambiarEstadoOperario(parqueaderoId: number, operarioId: number, administradorId: number, estado: 'ACTIVO' | 'INACTIVO', motivo: string): Promise<void>;
+    actualizarOperario(parqueaderoId: number, operarioId: number, administradorId: number, datos: IActualizarOperarioDTO): Promise<void>;
+    resetearPinOperario(parqueaderoId: number, operarioId: number, administradorId: number, pinHash: string): Promise<void>;
     actualizarDatosPropios(usuarioId: number, parqueaderoId: number, datos: IActualizarAdministradorPropioDTO): Promise<void>;
     registrarCodigoRecuperacion(usuarioId: number, codigoHash: string, expiraEn: Date, ip?: string | null): Promise<number>;
     eliminarCodigosExpirados(usuarioId: number): Promise<void>;

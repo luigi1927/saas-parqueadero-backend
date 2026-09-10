@@ -117,6 +117,7 @@ import miPerfilRoutes from './presentation/routes/miPerfil.routes.js';
 import operarioRoutes from './presentation/routes/operario.routes.js';
 import reporteRoutes from './presentation/routes/reporte.routes.js';
 import calendarioHabilRoutes from './presentation/routes/calendarioHabil.routes.js';
+import dashboardRoutes from './presentation/routes/dashboard.routes.js';
 
 import whatsappRoutes from './presentation/routes/whatsapp.routes.js';
 dotenv.config();
@@ -155,6 +156,7 @@ app.use('/api/v1/mi-perfil', miPerfilRoutes);
 app.use('/api/v1/operarios', operarioRoutes);
 app.use('/api/v1/reportes', reporteRoutes);
 app.use('/api/v1/dias-no-habiles', calendarioHabilRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 app.use('/api/v1/whatsapp', whatsappRoutes);
 // Endpoint HealthCheck

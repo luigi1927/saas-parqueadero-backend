@@ -3,8 +3,9 @@ import makeWASocket, {
     DisconnectReason,
     fetchLatestWaWebVersion
 } from '@whiskeysockets/baileys';
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import pino from 'pino';
-import qrcode from 'qrcode-terminal';
 import QRCodeBase64 from 'qrcode';
 import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCodigoRecuperacion } from '../../domain/services/IWhatsAppService.js';
 
@@ -36,17 +37,25 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                console.log('\n📲 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:\n');
-                qrcode.generate(qr, { small: true });
                 this.qrActual = await QRCodeBase64.toDataURL(qr);
             }
 
             if (connection === 'close') {
                 this.conectado = false;
                 const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                console.log('🔴 Conexión de WhatsApp cerrada. Reconectando...', shouldReconnect);
-                if (shouldReconnect) this.inicializar();
+                const sesionInvalida = [
+                    DisconnectReason.loggedOut,          // 401
+                    DisconnectReason.connectionReplaced, // 440
+                    DisconnectReason.badSession,         // 500
+                ].includes(statusCode);
+
+                if (sesionInvalida) {
+                    console.log('🧹 La sesión de WhatsApp es inválida/está desvinculada. Limpiando credenciales para generar un QR nuevo...');
+                    await this.limpiarSesion();
+                } else {
+                    console.log('🔴 Conexión de WhatsApp cerrada. Reconectando...');
+                    this.inicializar();
+                }
             } else if (connection === 'open') {
                 this.conectado = true;
                 this.qrActual = null;
@@ -132,7 +141,8 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `Registramos tu ingreso al parqueadero a las *${datos.horaIngreso}*.\n\n` +
             `Elige una opción respondiendo con el número: 👇\n\n` +
             `1️⃣ *Pagar*\n` +
-            `2️⃣ *Tiquete de parqueadero*`;
+            `2️⃣ *Tiquete de parqueadero*\n` +
+            `3️⃣ *Enviar mi código QR*`;
 
         let envio: any;
         if (datos.imagenBannerUrl) {
@@ -406,6 +416,33 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `El código es válido por *${datos.minutosValidez} minutos*. No lo compartas con nadie.`;
         await this.enviarTextoConMapeoTelefono(datos.telefono, mensaje);
         return true;
+    }
+
+    /**
+     * Cierra la sesión actual, elimina las credenciales locales (baileys_auth)
+     * y reinicia la conexión para generar un código QR nuevo de vinculación.
+     */
+    async desvincular(): Promise<void> {
+        await this.limpiarSesion();
+    }
+
+    /**
+     * Limpia la sesión local de WhatsApp y vuelve a inicializar la conexión.
+     * Se usa tanto para la desvinculación manual (botón) como para la
+     * auto-sanación cuando Baileys detecta credenciales rotas o desvinculadas.
+     */
+    private async limpiarSesion(): Promise<void> {
+        if (this.sock) {
+            this.sock.ev.removeAllListeners('connection.update');
+            this.sock.end(undefined);
+            this.sock = null;
+        }
+        await rm(join(process.cwd(), 'baileys_auth'), { recursive: true, force: true });
+        this.conectado = false;
+        this.qrActual = null;
+        this.mapaLidATelefono.clear();
+        this.telefonosEnEspera.clear();
+        await this.inicializar();
     }
 
     obtenerQr(): string | null {

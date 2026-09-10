@@ -13,7 +13,7 @@ export class MySQLUsuarioRepository implements IUsuarioRepository {
            usuario.bloqueado_hasta AS bloqueadoHasta, usuario.estado
       FROM usuarios usuario
       INNER JOIN roles rol ON rol.id = usuario.rol_id
-      WHERE usuario.parqueadero_id = ? AND rol.nombre IN ('ADMIN_PARQUEADERO', 'OPERARIO')
+      WHERE usuario.parqueadero_id = ? AND rol.nombre = 'OPERARIO'
       ORDER BY usuario.nombre ASC
     `, [parqueaderoId]);
     return rows as IUsuario[];
@@ -53,6 +53,48 @@ export class MySQLUsuarioRepository implements IUsuarioRepository {
       `, [estado, operarioId, parqueaderoId]);
       if (result.affectedRows !== 1) throw new Error('El operario no existe en este parqueadero.');
       await this.registrarAuditoria(connection, parqueaderoId, administradorId, `${estado}_OPERARIO`, motivo);
+      await connection.commit();
+    } catch (error: unknown) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+    async actualizarOperario(parqueaderoId: number, operarioId: number, administradorId: number, datos: import('../../domain/repositories/IUsuarioRepository.js').IActualizarOperarioDTO): Promise<void> {
+    const connection = await dbPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.execute<ResultSetHeader>(`
+        UPDATE usuarios usuario
+        INNER JOIN roles rol ON rol.id = usuario.rol_id
+        SET usuario.nombre = ?, usuario.telefono = ?, usuario.email = ?
+        WHERE usuario.id = ? AND usuario.parqueadero_id = ? AND rol.nombre = 'OPERARIO'
+      `, [datos.nombre.trim(), datos.telefono.trim(), datos.email?.trim() || null, operarioId, parqueaderoId]);
+      if (result.affectedRows !== 1) throw new Error('El operario no existe en este parqueadero.');
+      await this.registrarAuditoria(connection, parqueaderoId, administradorId, 'ACTUALIZAR_OPERARIO', `Operario ${operarioId}`);
+      await connection.commit();
+    } catch (error: unknown) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async resetearPinOperario(parqueaderoId: number, operarioId: number, administradorId: number, pinHash: string): Promise<void> {
+    const connection = await dbPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.execute<ResultSetHeader>(`
+        UPDATE usuarios usuario
+        INNER JOIN roles rol ON rol.id = usuario.rol_id
+        SET usuario.pin_hash = ?, usuario.intentos_fallidos_pin = 0, usuario.bloqueado_hasta = NULL
+        WHERE usuario.id = ? AND usuario.parqueadero_id = ? AND rol.nombre = 'OPERARIO'
+      `, [pinHash, operarioId, parqueaderoId]);
+      if (result.affectedRows !== 1) throw new Error('El operario no existe en este parqueadero.');
+      await this.registrarAuditoria(connection, parqueaderoId, administradorId, 'RESETEAR_PIN_OPERARIO', `Operario ${operarioId}`);
       await connection.commit();
     } catch (error: unknown) {
       await connection.rollback();

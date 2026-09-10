@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { MySQLUsuarioRepository } from '../../infrastructure/repositories/MySQLUsuarioRepository.js';
 import { LoginOperarioUseCase } from '../../application/use-cases/LoginOperarioUseCase.js';
 import { RecuperarAccesoUseCase } from '../../application/use-cases/RecuperarAccesoUseCase.js';
@@ -95,6 +96,34 @@ export class AuthController {
         } catch (error: unknown) {
             const mensaje = error instanceof Error ? error.message : 'No fue posible restablecer el PIN.';
             res.status(error instanceof TypeError ? 400 : 401).json({ error: mensaje });
+        }
+    }
+
+    static async cambiarPin(req: Request, res: Response): Promise<void> {
+        try {
+            const { pinActual, pinNuevo } = req.body;
+            if (!pinActual || !pinNuevo) {
+                throw new TypeError('El PIN actual y el nuevo son requeridos.');
+            }
+            if (!/^\d{4,8}$/.test(String(pinNuevo))) {
+                throw new TypeError('El PIN nuevo debe tener entre 4 y 8 dígitos.');
+            }
+
+            const usuario = await usuarioRepository.buscarPorId(req.user!.usuarioId);
+            if (!usuario || !usuario.pinHash) {
+                throw new TypeError('La cuenta no tiene un PIN asignado.');
+            }
+            const coincide = await bcrypt.compare(String(pinActual), usuario.pinHash);
+            if (!coincide) {
+                throw new TypeError('El PIN actual es incorrecto.');
+            }
+
+            const pinHash = await bcrypt.hash(String(pinNuevo), 10);
+            await usuarioRepository.restablecerPin(usuario.id!, pinHash);
+            res.status(200).json({ mensaje: 'Tu PIN ha sido actualizado.' });
+        } catch (error: unknown) {
+            const mensaje = error instanceof Error ? error.message : 'No fue posible cambiar el PIN.';
+            res.status(error instanceof TypeError ? 400 : 500).json({ error: mensaje });
         }
     }
 }

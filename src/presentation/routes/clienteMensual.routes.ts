@@ -8,6 +8,9 @@ const router = Router();
 // Debe registrarse antes del middleware de autenticación.
 router.get('/qr/:codigoQr', ClienteMensualController.consultarEstadoPorQr);
 
+// Autoservicio del rol CLIENTE: su mensualidad, pagos y ticket activo.
+router.get('/mi-mensualidad', authenticateToken, requireRoles('CLIENTE'), ClienteMensualController.miMensualidad);
+
 router.use(authenticateToken, requireParqueaderoOperativo);
 
 router.get('/resumen', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.resumen);

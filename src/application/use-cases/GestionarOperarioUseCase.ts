@@ -29,4 +29,15 @@ export class GestionarOperarioUseCase {
         if (!motivo.trim()) throw new TypeError('El motivo es requerido.');
         await this.usuarioRepository.cambiarEstadoOperario(parqueaderoId, operarioId, administradorId, estado, motivo.trim());
     }
+
+    async actualizar(parqueaderoId: number, administradorId: number, operarioId: number, datos: { nombre: string; telefono: string; email?: string | undefined }): Promise<void> {
+        if (!datos.nombre.trim() || !datos.telefono.trim()) throw new TypeError('Nombre y teléfono son requeridos.');
+        await this.usuarioRepository.actualizarOperario(parqueaderoId, operarioId, administradorId, datos);
+    }
+
+    async resetearPin(parqueaderoId: number, administradorId: number, operarioId: number, pinNuevo: string): Promise<void> {
+        if (!/^\d{4,8}$/.test(pinNuevo)) throw new TypeError('El PIN debe tener entre 4 y 8 dígitos.');
+        const pinHash = await bcrypt.hash(pinNuevo, 10);
+        await this.usuarioRepository.resetearPinOperario(parqueaderoId, operarioId, administradorId, pinHash);
+    }
 }

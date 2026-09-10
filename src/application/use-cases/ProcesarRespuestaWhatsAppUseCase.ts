@@ -47,6 +47,7 @@
 //     }
 // }
 
+import QRCode from 'qrcode';
 import type { ITicketRepository } from '../../domain/repositories/ITicketRepository.js';
 import type { BaileysWhatsAppService } from '../../infrastructure/services/BaileysWhatsAppService.js';
 
@@ -60,7 +61,32 @@ export class ProcesarRespuestaWhatsAppUseCase {
         const opcion = textoMensaje.trim().toLowerCase().replace('.', '');
 
         console.log(opcion);
-        // OPCIÓN 1: PAGAR (Despliega la lista interactiva de medios de pago)
+
+        // CÓDIGO QR DEL TIQUETE: el cliente pide la imagen QR para mostrar en el control de acceso.
+        if (opcion.includes('qr') || opcion.includes('código qr') || opcion === '3') {
+            const ticket = await this.ticketRepository.buscarTicketActivoPorTelefono(telefonoCliente);
+
+            if (!ticket) {
+                console.log(`⚠️ No se encontró tiquete activo para: ${telefonoCliente}`);
+                return;
+            }
+
+            const qrBuffer = await QRCode.toBuffer(ticket.codigoQr, {
+                type: 'png',
+                width: 350,
+                margin: 2
+            });
+
+            await this.whatsappService.enviarImagenQRTiquete({
+                telefono: telefonoCliente,
+                placa: ticket.placa,
+                ticketId: ticket.id!,
+                qrBuffer
+            });
+
+            console.log(`✅ Código QR enviado a WhatsApp [${telefonoCliente}] para ${ticket.placa}.`);
+            return;
+        }
         if (opcion === '1') {
             await this.whatsappService.enviarMenuMediosPago(telefonoCliente);
             return;
