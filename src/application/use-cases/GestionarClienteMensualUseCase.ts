@@ -24,7 +24,11 @@ export class GestionarClienteMensualUseCase {
         const cliente = await this.clienteMensualRepository.buscarPorId(id, parqueaderoId);
         if (!cliente) throw new Error('La mensualidad no existe.');
         if (!placaNueva.trim()) throw new TypeError('La nueva placa es requerida.');
-        if (cliente.placa === placaNueva.trim().toUpperCase()) return cliente;
+        const placaNuevaLimpia = placaNueva.trim().toUpperCase();
+        if (!/^[A-Z0-9-]{1,10}$/.test(placaNuevaLimpia)) {
+            throw new TypeError('La placa es inválida: debe tener entre 1 y 10 caracteres alfanuméricos.');
+        }
+        if (cliente.placa === placaNuevaLimpia) return cliente;
 
         const ticketActivo = await this.ticketRepository.buscarTicketActivoPorPlaca(parqueaderoId, cliente.placa);
         if (ticketActivo) {

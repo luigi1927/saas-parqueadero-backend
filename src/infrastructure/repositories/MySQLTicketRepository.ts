@@ -299,10 +299,14 @@ export class MySQLTicketRepository implements ITicketRepository {
 
   async obtenerNombreParqueadero(parqueaderoId: number | string): Promise<string> {
     const connection = await dbPool.getConnection();
-    const [rows]: any = await connection.query(
-      'SELECT nombre_comercial FROM parqueaderos WHERE id = ?',
-      [parqueaderoId]
-    );
-    return rows[0]?.nombre_comercial;
+    try {
+      const [rows]: any = await connection.query(
+        'SELECT nombre_comercial FROM parqueaderos WHERE id = ?',
+        [parqueaderoId]
+      );
+      return rows[0]?.nombre_comercial;
+    } finally {
+      connection.release();
+    }
   }
 }

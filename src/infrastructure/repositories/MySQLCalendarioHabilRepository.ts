@@ -48,7 +48,10 @@ export class MySQLCalendarioHabilRepository implements ICalendarioHabilRepositor
     }
 }
 
-const formatearFecha = (fecha: Date): string => {
+const formatearFecha = (fecha: Date | string): string => {
+    if (typeof fecha === 'string') {
+        return fecha.slice(0, 10);
+    }
     const anio = fecha.getFullYear();
     const mes = String(fecha.getMonth() + 1).padStart(2, '0');
     const dia = String(fecha.getDate()).padStart(2, '0');

@@ -13,8 +13,13 @@ export class RegistrarEntradaUseCase {
 
     async ejecutar(data: IRegistroEntradaDTO) {
 
-
         const placaLimpia = data.placa.trim().toUpperCase();
+        if (!/^[A-Z0-9-]{1,10}$/.test(placaLimpia)) {
+            throw new TypeError('La placa es inválida: debe tener entre 1 y 10 caracteres alfanuméricos.');
+        }
+        if (data.telefonoWhatsapp && String(data.telefonoWhatsapp).replace(/\D/g, '').length > 20) {
+            throw new TypeError('El teléfono de WhatsApp es inválido.');
+        }
 
         // 1. Verificar si el operario tiene un turno de caja abierto
         const turnoIngresoId = await this.ticketRepository.buscarTurnoAbierto(data.parqueaderoId, data.usuarioIngresoId);

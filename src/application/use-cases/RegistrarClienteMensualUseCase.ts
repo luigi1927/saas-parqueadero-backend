@@ -17,6 +17,13 @@ export class RegistrarClienteMensualUseCase {
         if (!dto.placa?.trim() || !dto.nombreCliente?.trim() || !dto.telefono?.trim()) {
             throw new Error('La placa, el nombre y el teléfono de WhatsApp son requeridos.');
         }
+        const placaLimpia = dto.placa.trim().toUpperCase();
+        if (!/^[A-Z0-9-]{1,10}$/.test(placaLimpia)) {
+            throw new TypeError('La placa es inválida: debe tener entre 1 y 10 caracteres alfanuméricos.');
+        }
+        if (String(dto.telefono).replace(/\D/g, '').length > 20) {
+            throw new TypeError('El teléfono de WhatsApp es inválido.');
+        }
         if (!['SR', 'SRA', 'NEUTRO'].includes(dto.tratamiento)) {
             throw new TypeError('El tratamiento debe ser SR, SRA o NEUTRO.');
         }
@@ -25,9 +32,9 @@ export class RegistrarClienteMensualUseCase {
             throw new TypeError('El método de pago inicial no es válido.');
         }
 
-        const clienteExistente = await this.clienteRepository.buscarPorPlaca(dto.placa, dto.parqueaderoId);
+        const clienteExistente = await this.clienteRepository.buscarPorPlaca(placaLimpia, dto.parqueaderoId);
         if (clienteExistente) {
-            throw new Error(`Ya existe un cliente mensual activo asignado a la placa ${dto.placa.toUpperCase()}.`);
+            throw new Error(`Ya existe un cliente mensual activo asignado a la placa ${placaLimpia}.`);
         }
 
         const turno = await this.turnoRepository.buscarTurnoAbiertoPorUsuario(dto.parqueaderoId, usuarioId);

@@ -1,87 +1,5 @@
-// import express from 'express';
-// import type { Application, Request, Response } from 'express';
-// import { createServer } from 'node:http';
-// import { Server } from 'socket.io';
-// import cors from 'cors';
-// import helmet from 'helmet';
-// import morgan from 'morgan';
-// import dotenv from 'dotenv';
-// import { checkDatabaseConnection } from './infrastructure/database/mysql.config.js';
-// import authRoutes from './presentation/routes/auth.routes.js';
-// import entradaRoutes from './presentation/routes/entrada.routes.js';
-// import ticketRoutes from './presentation/routes/ticket.routes.js';
-// import turnoRoutes from './presentation/routes/turno.routes.js';
-// import egresoRoutes from './presentation/routes/egreso.routes.js';
-// import tarifaRoutes from './presentation/routes/tarifa.routes.js';
-// import clienteMensualRoutes from './presentation/routes/clienteMensual.routes.js';
-// dotenv.config();
-
-// const app: Application = express();
-// const httpServer = createServer(app);
-
-// // Configuración de WebSockets con Socket.io
-// export const io = new Server(httpServer, {
-//     cors: {
-//         origin: process.env.CLIENT_URL || '*',
-//         methods: ['GET', 'POST', 'PUT', 'DELETE']
-//     }
-// });
-
-// // Middlewares de Seguridad y Registro
-// app.use(helmet()); // Cabeceras HTTP seguras
-// app.use(cors()); // Control de acceso HTTP
-// app.use(express.json()); // Parsing de body JSON
-// app.use(morgan('dev')); // Logger de peticiones HTTP en consola
-
-// app.use('/api/v1/auth', authRoutes);
-// app.use('/api/v1/entradas', entradaRoutes);
-// app.use('/api/v1/tickets', ticketRoutes);
-// app.use('/api/v1/turnos', turnoRoutes);
-// app.use('/api/v1/egresos', egresoRoutes);
-// app.use('/api/v1/tarifas', tarifaRoutes);
-// app.use('/api/v1/clientes-mensuales', clienteMensualRoutes);
-
-// // Endpoint HealthCheck
-// app.get('/api/v1/health', (_req: Request, res: Response) => {
-//     res.status(200).json({
-//         status: 'ok',
-//         timestamp: new Date().toISOString()
-//     });
-// });
-
-// // Evento de Conexión WebSocket para la PWA
-// io.on('connection', (socket) => {
-//     console.log(`📡 Cliente conectado a WebSockets: ${socket.id}`);
-
-//     // Permite a la PWA unirse a una "sala" exclusiva de su parqueadero
-//     socket.on('unirse_parqueadero', (parqueaderoId: number) => {
-//         socket.join(`parqueadero_${parqueaderoId}`);
-//         console.log(`🔑 Socket ${socket.id} unido a sala: parqueadero_${parqueaderoId}`);
-//     });
-
-//     socket.on('disconnect', () => {
-//         console.log(`🔌 Cliente desconectado: ${socket.id}`);
-//     });
-// });
-
-// // Inicialización del Servidor
-// const PORT = Number(process.env.PORT) || 3000;
-
-// const startServer = async () => {
-//     // 1. Validar conexión a MySQL antes de abrir el puerto
-//     await checkDatabaseConnection();
-
-//     // 2. Levantar servidor HTTP y WebSockets
-//     httpServer.listen(PORT, () => {
-//         console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
-//         console.log(`⚡ WebSockets listos en puerto ${PORT}`);
-//     });
-// };
-
-// startServer();
-
 import express from 'express';
-import type { Application, Request, Response } from 'express';
+import type { Application, NextFunction, Request, Response } from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -177,6 +95,35 @@ app.get('/api/v1/health', async (_req: Request, res: Response): Promise<void> =>
     });
 });
 
+// Middleware centralizado de errores: garantiza respuestas JSON ante fallos
+// no controlados (evita HTML/stack traces expuestos al cliente).
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+    console.error('❌ Error no controlado:', error);
+    if (res.headersSent) {
+        return;
+    }
+    const detalle = error as { status?: unknown; statusCode?: unknown; type?: unknown } | null;
+    const jsonMalformado = typeof error === 'object' &&
+        error !== null &&
+        detalle?.type === 'entity.parse.failed';
+    const statusConocido = Number(detalle?.status ?? detalle?.statusCode) || 0;
+    const esErrorDeValidacion = jsonMalformado || error instanceof TypeError;
+    const status = esErrorDeValidacion
+        ? 400
+        : (statusConocido >= 400 && statusConocido < 600 ? statusConocido : 500);
+    res.status(status).json({
+        success: false,
+        message: status < 500 && error instanceof Error
+            ? error.message
+            : 'Error interno del servidor.'
+    });
+});
+
+// Ruta no encontrada (API): responde JSON en lugar del HTML por defecto de Express.
+app.use((_req: Request, res: Response): void => {
+    res.status(404).json({ success: false, message: 'Recurso no encontrado.' });
+});
+
 // Evento de Conexión WebSocket para la PWA
 io.on('connection', (socket) => {
     console.log(`📡 Cliente conectado a WebSockets: ${socket.id}`);
@@ -216,12 +163,16 @@ const startServer = async () => {
         );
 
         whatsappService.alRecibirMensaje(async (telefono, texto) => {
-            const respuestaMensualidadProcesada = await procesarRespuestaMensualidadUseCase.ejecutar(telefono, texto);
-            if (respuestaMensualidadProcesada) {
-                console.log(`Respuesta de mensualidad procesada para ${telefono}.`);
-                return;
+            try {
+                const respuestaMensualidadProcesada = await procesarRespuestaMensualidadUseCase.ejecutar(telefono, texto);
+                if (respuestaMensualidadProcesada) {
+                    console.log(`Respuesta de mensualidad procesada para ${telefono}.`);
+                    return;
+                }
+                await procesarRespuestaUseCase.ejecutar(telefono, texto);
+            } catch (error: unknown) {
+                console.error(`❌ Error procesando el mensaje de WhatsApp de ${telefono}:`, error);
             }
-            await procesarRespuestaUseCase.ejecutar(telefono, texto);
         });
 
         const notificacionMensualidadRepository = new MySQLNotificacionMensualidadRepository();

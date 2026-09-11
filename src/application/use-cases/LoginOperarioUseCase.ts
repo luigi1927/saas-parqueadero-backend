@@ -24,15 +24,23 @@ interface ResultadoSeleccionParqueadero {
     opciones: OpcionParqueadero[];
 }
 
+// Hash bcrypt de una cadena arbitraria usado para igualar el tiempo de respuesta
+// cuando el documento no existe (evita enumeración de cuentas por timing).
+const HASH_CENTINELA = '$2b$10$g9mbZDWBuZkkxDiqVKn80.2utUfXxv4lz.Ly7du16o1sR03aHSHZy';
+
+const MENSAJE_CREDENCIALES = 'Credenciales inválidas.';
+
 export class LoginOperarioUseCase {
     constructor(private readonly usuarioRepository: IUsuarioRepository) { }
 
     async ejecutar(data: LoginInput) {
         const usuario = await this.usuarioRepository.buscarPorDocumento(data.parqueaderoId, data.documentoId);
 
-        // Validar existencia
+        // Validar existencia. El compare centinela iguala el tiempo de ejecución
+        // con el flujo de PIN incorrecto para no filtrar cuentas por timing.
         if (!usuario) {
-            throw new Error('Credenciales inválidas'); // Mensaje genérico por seguridad
+            await bcrypt.compare(data.pin, HASH_CENTINELA);
+            throw new Error(MENSAJE_CREDENCIALES);
         }
 
         return this.autenticar(usuario, data.pin);
@@ -43,7 +51,8 @@ export class LoginOperarioUseCase {
         const candidatos = await this.usuarioRepository.buscarCuentasActivasPorDocumento(data.documentoId);
 
         if (candidatos.length === 0) {
-            throw new Error('Credenciales inválidas');
+            await bcrypt.compare(data.pin, HASH_CENTINELA);
+            throw new Error(MENSAJE_CREDENCIALES);
         }
 
         if (candidatos.length === 1) {
@@ -53,7 +62,8 @@ export class LoginOperarioUseCase {
         // El mismo documentoId existe en varios parqueaderos: hay que desambiguar por PIN.
         const activos = candidatos.filter((c) => c.estado !== 'BLOQUEADO');
         if (activos.length === 0) {
-            throw new Error('Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador.');
+            await bcrypt.compare(data.pin, HASH_CENTINELA);
+            throw new Error(MENSAJE_CREDENCIALES);
         }
 
         const validaciones = await Promise.all(
@@ -63,7 +73,7 @@ export class LoginOperarioUseCase {
 
         if (matches.length === 0) {
             await Promise.all(activos.map((usuario) => this.registrarFalloIntento(usuario)));
-            throw new Error('Credenciales inválidas');
+            throw new Error(MENSAJE_CREDENCIALES);
         }
 
         if (matches.length === 1) {
@@ -81,12 +91,8 @@ export class LoginOperarioUseCase {
     }
 
     private async autenticar(usuario: IUsuario, pin: string) {
-        // Validar estado de bloqueo
-        if (usuario.estado === 'BLOQUEADO') {
-            throw new Error('Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador.');
-        }
-
-        // Validar PIN con bcrypt
+        // Validar PIN con bcrypt. Los mensajes de fallo son genéricos e idénticos
+        // entre sí para no revelar si el documento existe ni su estado de bloqueo.
         const pinValido = await bcrypt.compare(pin, usuario.pinHash);
 
         if (!pinValido) {
@@ -94,12 +100,10 @@ export class LoginOperarioUseCase {
 
             if (intentosActuales >= 3) {
                 await this.usuarioRepository.bloquearUsuario(usuario.id!);
-                throw new Error('Has superado el límite de 3 intentos. Tu cuenta ha sido BLOQUEADA.');
             } else {
                 await this.usuarioRepository.registrarIntentoFallido(usuario.id!, intentosActuales);
-                const intentosRestantes = 3 - intentosActuales;
-                throw new Error(`PIN incorrecto. Te quedan ${intentosRestantes} intento(s).`);
             }
+            throw new Error(MENSAJE_CREDENCIALES);
         }
 
         // Si el PIN es correcto, reseteamos contadores de error

@@ -8,10 +8,20 @@ export class EnviarNotificacionesMensualidadUseCase {
     ) { }
 
     async ejecutar(): Promise<void> {
+        // Interruptor de seguridad: si WhatsApp no está conectado no se reclaman
+        // notificaciones ni se intenta enviar, evitando esperas prolongadas y
+        // presión innecesaria sobre la base de datos.
+        if (!this.whatsappService.estaConectado()) {
+            return;
+        }
+
         await this.notificacionRepository.crearNotificacionesDelDia();
         const notificaciones = await this.notificacionRepository.obtenerPendientes(50);
 
         for (const notificacion of notificaciones) {
+            if (!this.whatsappService.estaConectado()) {
+                break;
+            }
             const reclamada = await this.notificacionRepository.reclamarParaEnvio(notificacion.id);
             if (!reclamada) {
                 continue;

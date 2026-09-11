@@ -37,11 +37,11 @@ export class SuperAdminParqueaderoController {
     }
 
     static async activar(req: Request, res: Response): Promise<void> {
-        await this.cambiarEstado(req, res, 'ACTIVO');
+        await SuperAdminParqueaderoController.cambiarEstado(req, res, 'ACTIVO');
     }
 
     static async suspender(req: Request, res: Response): Promise<void> {
-        await this.cambiarEstado(req, res, 'SUSPENDIDO');
+        await SuperAdminParqueaderoController.cambiarEstado(req, res, 'SUSPENDIDO');
     }
 
     static async renovarSuscripcion(req: Request, res: Response): Promise<void> {

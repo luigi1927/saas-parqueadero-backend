@@ -10,8 +10,15 @@ import QRCodeBase64 from 'qrcode';
 import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCodigoRecuperacion } from '../../domain/services/IWhatsAppService.js';
 
 export class BaileysWhatsAppService implements IWhatsAppService {
+    private static readonly TIEMPO_ENVIO_MS = 15000;
+    private static readonly TIEMPO_RECONEXION_MS = 5000;
+    private static readonly MAX_REINTENTOS_RECONEXION = 10;
+
     private sock: any;
     private conectado = false;
+    private conectando = false;
+    private reconexionTimer?: NodeJS.Timeout;
+    private reintentosReconexion = 0;
     private oyenteMensajes?: (telefono: string, texto: string) => Promise<void>;
     private qrActual: string | null = null;
 
@@ -22,8 +29,14 @@ export class BaileysWhatsAppService implements IWhatsAppService {
     private telefonosEnEspera = new Set<string>();
 
     async inicializar(): Promise<void> {
-        const { state, saveCreds } = await useMultiFileAuthState('baileys_auth');
-        const { version } = await fetchLatestWaWebVersion({});
+        if (this.conectando) {
+            return;
+        }
+        this.conectando = true;
+        try {
+            const { state, saveCreds } = await useMultiFileAuthState(this.obtenerDirectorioAuth());
+            const { version } = await this.conTimeout(fetchLatestWaWebVersion({}), 10000)
+                .catch(() => ({ version: undefined as never }));
 
         this.sock = makeWASocket({
             version,
@@ -42,6 +55,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
 
             if (connection === 'close') {
                 this.conectado = false;
+                this.reintentosReconexion += 1;
                 const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
                 const sesionInvalida = [
                     DisconnectReason.loggedOut,          // 401
@@ -50,13 +64,24 @@ export class BaileysWhatsAppService implements IWhatsAppService {
                 ].includes(statusCode);
 
                 if (sesionInvalida) {
+                    this.reintentosReconexion = 0;
+                    clearTimeout(this.reconexionTimer);
                     console.log('🧹 La sesión de WhatsApp es inválida/está desvinculada. Limpiando credenciales para generar un QR nuevo...');
                     await this.limpiarSesion();
+                } else if (this.reintentosReconexion > BaileysWhatsAppService.MAX_REINTENTOS_RECONEXION) {
+                    console.log('🚫 WhatsApp: se alcanzó el máximo de reintentos de reconexión. Se detiene el ciclo.');
+                    this.cerrarSocket();
                 } else {
-                    console.log('🔴 Conexión de WhatsApp cerrada. Reconectando...');
-                    this.inicializar();
+                    console.log(`🔴 Conexión de WhatsApp cerrada. Reconectando (intento ${this.reintentosReconexion})...`);
+                    this.cerrarSocket();
+                    clearTimeout(this.reconexionTimer);
+                    this.reconexionTimer = setTimeout(
+                        () => void this.inicializar(),
+                        BaileysWhatsAppService.TIEMPO_RECONEXION_MS
+                    );
                 }
             } else if (connection === 'open') {
+                this.reintentosReconexion = 0;
                 this.conectado = true;
                 this.qrActual = null;
                 console.log('🟢 WhatsApp conectado exitosamente mediante Baileys.');
@@ -116,6 +141,9 @@ export class BaileysWhatsAppService implements IWhatsAppService {
                 }
             }
         });
+        } finally {
+            this.conectando = false;
+        }
     }
 
     alRecibirMensaje(callback: (telefono: string, texto: string) => Promise<void>): void {
@@ -146,12 +174,12 @@ export class BaileysWhatsAppService implements IWhatsAppService {
 
         let envio: any;
         if (datos.imagenBannerUrl) {
-            envio = await this.sock.sendMessage(jid, {
+            envio = await this.conTimeout(this.sock.sendMessage(jid, {
                 image: { url: datos.imagenBannerUrl },
                 caption: mensajeTexto
-            });
+            }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         } else {
-            envio = await this.sock.sendMessage(jid, { text: mensajeTexto });
+            envio = await this.conTimeout(this.sock.sendMessage(jid, { text: mensajeTexto }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         }
 
         // Si Baileys nos devuelve la ID de la conversación, la asociamos de inmediato
@@ -165,11 +193,11 @@ export class BaileysWhatsAppService implements IWhatsAppService {
     async enviarImagenQRTiquete(datos: DTOEnvioQRBaileys): Promise<boolean> {
         const jid = this.formatearJid(datos.telefono);
 
-        await this.sock.sendMessage(jid, {
+        await this.conTimeout(this.sock.sendMessage(jid, {
             image: datos.qrBuffer,
             caption: `🎟️ *TIQUETE VIRTUAL - PLACA ${datos.placa}*\n\n` +
                 `Muestra este código QR al operario al momento de tu salida para liquidar la tarifa.`
-        });
+        }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
 
         return true;
     }
@@ -184,7 +212,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `3️⃣ *Nequi*\n` +
             `0️⃣ *Volver al menú principal*`;
 
-        await this.sock.sendMessage(jid, { text: mensajeTexto });
+        await this.conTimeout(this.sock.sendMessage(jid, { text: mensajeTexto }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         return true;
     }
 
@@ -202,7 +230,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `Presenta el tiquete de pago que encuentras en este enlace: 👇\n\n` +
             `${datos.urlWebTiquete}`;
 
-        await this.sock.sendMessage(jid, {
+        await this.conTimeout(this.sock.sendMessage(jid, {
             text: mensajeText,
             linkPreview: {
                 "canonical-url": datos.urlWebTiquete,
@@ -211,7 +239,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
                 description: `Tiquete de entrada - Placa ${datos.placa}`,
                 jpegThumbnail: null // Puedes adjuntar un Buffer en Base64 con el logo de SmartParking
             }
-        });
+        }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
 
         return true;
     }
@@ -272,7 +300,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             `Tienes *${minutos} minutos* para salir del parqueadero o empezará un nuevo cobro.\n` +
             `¡Gracias por visitar *${datos.nombreParqueadero}*! 🚗💨`;
 
-        await this.sock.sendMessage(jid, { text: mensajeTexto });
+        await this.conTimeout(this.sock.sendMessage(jid, { text: mensajeTexto }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         return true;
     }
 
@@ -373,11 +401,11 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             try {
                 const urlQr = `https://tu-dominio-parqueadero.com/mensualidad/${datos.codigoQr}`;
                 const qrBuffer = await QRCodeBase64.toBuffer(urlQr, { type: 'png', width: 300, margin: 2 });
-                await this.sock.sendMessage(this.formatearJid(datos.telefono), {
+                await this.conTimeout(this.sock.sendMessage(this.formatearJid(datos.telefono), {
                     image: qrBuffer,
                     caption: `🔖 *QR DE TU MENSUALIDAD - PLACA ${datos.placa}*\n\n` +
                         `Guarda este código: al escanearlo, el sistema te indica si el vehículo está *dentro* del parqueadero o si ya salió, junto con la vigencia de tu mensualidad.`
-                });
+                }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
             } catch (error: unknown) {
                 console.error('No fue posible enviar el QR de la mensualidad.', error);
             }
@@ -395,7 +423,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
     private async enviarTextoConMapeoTelefono(telefono: string, mensaje: string): Promise<void> {
         const telefonoLimpio = this.normalizarTelefono(telefono);
         this.telefonosEnEspera.add(telefonoLimpio);
-        const envio = await this.sock.sendMessage(this.formatearJid(telefono), { text: mensaje });
+        const envio: any = await this.conTimeout(this.sock.sendMessage(this.formatearJid(telefono), { text: mensaje }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         const remoteJid = envio?.key?.remoteJid;
         if (remoteJid) {
             this.mapaLidATelefono.set(remoteJid, telefonoLimpio);
@@ -407,6 +435,48 @@ export class BaileysWhatsAppService implements IWhatsAppService {
         return telefonoLimpio.startsWith('57') && telefonoLimpio.length === 12
             ? telefonoLimpio.substring(2)
             : telefonoLimpio;
+    }
+
+    /**
+     * Ejecuta una promesa acotándola a un tiempo máximo para que una
+     * operación de red colgada (p. ej. envío de WhatsApp) nunca bloquee
+     * la aplicación ni agote recursos indefinidamente.
+     */
+    private async conTimeout<T>(promesa: Promise<T>, ms: number): Promise<T> {
+        promesa.then(() => { }, () => { });
+        let temporizador: NodeJS.Timeout | undefined;
+        const temporizadorPromesa = new Promise<never>((_, rechazar) => {
+            temporizador = setTimeout(() => {
+                rechazar(new Error(`Tiempo de espera agotado (${ms} ms).`));
+            }, ms);
+        });
+        try {
+            return await Promise.race([promesa, temporizadorPromesa]);
+        } finally {
+            if (temporizador) clearTimeout(temporizador);
+        }
+    }
+
+    /**
+     * Directorio donde se guardan las credenciales de sesión de Baileys.
+     * Se puede aislar por proceso/instancia con la variable WHATSAPP_AUTH_DIR
+     * (evita que dos instancias compartan el mismo par de keys de WhatsApp).
+     */
+    private obtenerDirectorioAuth(): string {
+        return process.env.WHATSAPP_AUTH_DIR?.trim() || 'baileys_auth';
+    }
+
+    private cerrarSocket(): void {
+        if (this.sock) {
+            this.sock.ev.removeAllListeners('connection.update');
+            this.sock.ev.removeAllListeners('messages.upsert');
+            try {
+                this.sock.end(undefined);
+            } catch {
+                // el socket ya estaba cerrado
+            }
+            this.sock = null;
+        }
     }
 
     async enviarCodigoRecuperacion(datos: DTOCodigoRecuperacion): Promise<boolean> {
@@ -437,7 +507,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
             this.sock.end(undefined);
             this.sock = null;
         }
-        await rm(join(process.cwd(), 'baileys_auth'), { recursive: true, force: true });
+        await rm(join(process.cwd(), this.obtenerDirectorioAuth()), { recursive: true, force: true });
         this.conectado = false;
         this.qrActual = null;
         this.mapaLidATelefono.clear();

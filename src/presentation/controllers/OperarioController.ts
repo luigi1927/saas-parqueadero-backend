@@ -23,11 +23,11 @@ export class OperarioController {
     }
 
     static async activar(req: Request, res: Response): Promise<void> {
-        await this.cambiarEstado(req, res, 'ACTIVO');
+        await OperarioController.cambiarEstado(req, res, 'ACTIVO');
     }
 
     static async desactivar(req: Request, res: Response): Promise<void> {
-        await this.cambiarEstado(req, res, 'INACTIVO');
+        await OperarioController.cambiarEstado(req, res, 'INACTIVO');
     }
 
     static async actualizar(req: Request, res: Response): Promise<void> {
