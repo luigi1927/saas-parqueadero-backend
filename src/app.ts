@@ -23,6 +23,9 @@ import { MySQLCalendarioHabilRepository } from './infrastructure/repositories/My
 import { ActualizarEstadosSaasUseCase } from './application/use-cases/ActualizarEstadosSaasUseCase.js';
 import { MySQLParqueaderoRepository } from './infrastructure/repositories/MySQLParqueaderoRepository.js';
 import { ProcesadorEstadosSaas } from './infrastructure/services/ProcesadorEstadosSaas.js';
+import { MySQLClienteMensualRepository } from './infrastructure/repositories/MySQLClienteMensualRepository.js';
+import { MySQLConfiguracionCobrosDigitalesRepository } from './infrastructure/repositories/MySQLConfiguracionCobrosDigitalesRepository.js';
+import { PasarelaCobroReferenciaService } from './infrastructure/services/PasarelaCobroReferenciaService.js';
 
 import authRoutes from './presentation/routes/auth.routes.js';
 import entradaRoutes from './presentation/routes/entrada.routes.js';
@@ -32,6 +35,7 @@ import egresoRoutes from './presentation/routes/egreso.routes.js';
 import tarifaRoutes from './presentation/routes/tarifa.routes.js';
 import clienteMensualRoutes from './presentation/routes/clienteMensual.routes.js';
 import configuracionMensualidadRoutes from './presentation/routes/configuracionMensualidad.routes.js';
+import configuracionCobrosRoutes from './presentation/routes/configuracionCobros.routes.js';
 import superAdminParqueaderoRoutes from './presentation/routes/superAdminParqueadero.routes.js';
 import miPerfilRoutes from './presentation/routes/miPerfil.routes.js';
 import operarioRoutes from './presentation/routes/operario.routes.js';
@@ -84,6 +88,7 @@ app.use('/api/v1/egresos', egresoRoutes);
 app.use('/api/v1/tarifas', tarifaRoutes);
 app.use('/api/v1/clientes-mensuales', clienteMensualRoutes);
 app.use('/api/v1/configuracion-mensualidades', configuracionMensualidadRoutes);
+app.use('/api/v1/configuracion-cobros', configuracionCobrosRoutes);
 app.use('/api/v1/admin', superAdminParqueaderoRoutes);
 app.use('/api/v1/mi-perfil', miPerfilRoutes);
 app.use('/api/v1/operarios', operarioRoutes);
@@ -186,13 +191,21 @@ const startServer = async () => {
 
         // Conectar el escucha para respuestas numéricas del cliente (Ej: presionar "1" para ver QR)
         const ticketRepository = new MySQLTicketRepository();
-        const procesarRespuestaUseCase = new ProcesarRespuestaWhatsAppUseCase(ticketRepository, whatsappService);
+        const procesarRespuestaUseCase = new ProcesarRespuestaWhatsAppUseCase(
+            ticketRepository,
+            whatsappService,
+            new MySQLConfiguracionCobrosDigitalesRepository(),
+            new PasarelaCobroReferenciaService()
+        );
         const conversacionMensualidadRepository = new MySQLConversacionMensualidadRepository();
         const procesarRespuestaMensualidadUseCase = new ProcesarRespuestaMensualidadUseCase(
             conversacionMensualidadRepository,
             new MySQLConfiguracionMensualidadRepository(),
             new MySQLCalendarioHabilRepository(),
-            whatsappService
+            whatsappService,
+            new MySQLConfiguracionCobrosDigitalesRepository(),
+            new MySQLClienteMensualRepository(),
+            new PasarelaCobroReferenciaService()
         );
 
         whatsappService.alRecibirMensaje(async (telefono, texto) => {

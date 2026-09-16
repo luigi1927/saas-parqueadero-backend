@@ -4,7 +4,8 @@ import type {
     ICrearClienteMensualDTO,
     IRegistrarPagoMensualidadDTO,
     IClienteMensualDetalle,
-    IClienteMensualQr
+    IClienteMensualQr,
+    IIntencionPagoMensualidad
 } from '../types/clienteMensual.types.js';
 import type { IPeriodoMensualidad } from '../services/CalcularPeriodoMensualidad.js';
 
@@ -28,6 +29,7 @@ export interface IClienteMensualRepository {
     registrarPago(datos: IRegistrarPagoMensualidadDTO): Promise<IPagoMensualidad>;
     registrarClienteConPago(datos: ICrearClienteMensualDTO, usuarioId: number, turnoCajaId: number, monto: number, periodo: IPeriodoMensualidad): Promise<IClienteMensual>;
     renovarConPago(datos: IRegistrarPagoMensualidadDTO, periodo: IPeriodoMensualidad): Promise<IPagoMensualidad>;
+    crearIntencionDigital(parqueaderoId: number, clienteMensualId: number, monto: number, metodoPago: 'NEQUI' | 'DAVIPLATA' | 'WOMPI_BRE_B', referenciaExterna: string, fechaVencimientoCiclo: Date, fechaExpiracion: Date): Promise<IIntencionPagoMensualidad>;
     listarPagosPorCliente(clienteMensualId: number, parqueaderoId: number): Promise<IPagoMensualidad[]>;
     calcularRecaudoMensualidadesTurno(turnoId: number): Promise<{ totalEfectivo: number; totalOtros: number }>;
 }

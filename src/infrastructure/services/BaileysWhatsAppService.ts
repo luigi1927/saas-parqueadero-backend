@@ -7,7 +7,8 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import pino from 'pino';
 import QRCodeBase64 from 'qrcode';
-import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCambioTelefonoMensualidad, DTOCodigoRecuperacion } from '../../domain/services/IWhatsAppService.js';
+import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCambioTelefonoMensualidad, DTOCodigoRecuperacion, DTOMenuRenovacionMensualidad, DTOInstruccionPagoDigital } from '../../domain/services/IWhatsAppService.js';
+import type { MetodoPagoDigital } from '../../domain/types/clienteMensual.types.js';
 import { obtenerUrlPublicaWeb } from '../config/env.config.js';
 
 export class BaileysWhatsAppService implements IWhatsAppService {
@@ -203,15 +204,15 @@ export class BaileysWhatsAppService implements IWhatsAppService {
         return true;
     }
 
-    // Enviar menú de medios de pago formateado
-    async enviarMenuMediosPago(telefono: string): Promise<boolean> {
+    // Enviar menú de medios de pago formateado (dinámico según configuración de cobros digitales)
+    async enviarMenuMediosPago(telefono: string, metodosDigitales: MetodoPagoDigital[] = []): Promise<boolean> {
         const jid = this.formatearJid(telefono);
+        const lineas = metodosDigitales.map((metodo, indice) => {
+            const nombre = metodo === 'NEQUI' ? '*Nequi*' : metodo === 'DAVIPLATA' ? '*Daviplata*' : '*Breve* (llave)';
+            return `${indice + 1}\uFE0F\u20E3 ${nombre}`;
+        });
 
-        const mensajeTexto = `Elige un medio seguro para el pago de esta visita al parqueadero. 👇\n\n` +
-            `1️⃣ *DaviPlata*\n` +
-            `2️⃣ *Tarjetas de crédito (WOMPI)*\n` +
-            `3️⃣ *Nequi*\n` +
-            `0️⃣ *Volver al menú principal*`;
+        const mensajeTexto = ['Elige un medio para el pago de esta visita al parqueadero. 👇', '', ...lineas, '0️⃣ *Volver al menú principal*'].join('\n');
 
         await this.conTimeout(this.sock.sendMessage(jid, { text: mensajeTexto }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
         return true;
@@ -343,8 +344,28 @@ export class BaileysWhatsAppService implements IWhatsAppService {
         return 'Buenas noches';
     }
 
-    async enviarMenuRenovacionMensualidad(datos: { telefono: string; placa: string }): Promise<boolean> {
-        const mensaje = `Elige el medio para renovar la mensualidad para la placa *${datos.placa}*:\n\n1. *Efectivo*\n0. *Cancelar*`;
+    async enviarMenuRenovacionMensualidad(datos: DTOMenuRenovacionMensualidad): Promise<boolean> {
+        const lineasMetodos = datos.metodosDigitales.map((metodo, indice) => {
+            if (metodo === 'WOMPI_BRE_B') return `${indice + 2}. *Breve* (llave)`;
+            if (metodo === 'DAVIPLATA') return `${indice + 2}. *Daviplata*`;
+            return `${indice + 2}. *Nequi*`;
+        });
+        const mensaje = [
+            `Elige el medio para renovar la mensualidad para la placa *${datos.placa}*:`,
+            '',
+            '1. *Efectivo*',
+            ...lineasMetodos,
+            '0. *Cancelar*'
+        ].join('\n');
+        await this.enviarTextoConMapeoTelefono(datos.telefono, mensaje);
+        return true;
+    }
+
+    async enviarInstruccionPagoDigital(datos: DTOInstruccionPagoDigital): Promise<boolean> {
+        const destinatario = datos.nombreCliente.trim()
+            ? this.formatearDestinatario(datos.nombreCliente, datos.tratamiento)
+            : 'Hola';
+        const mensaje = `${destinatario}.\n\n${datos.textoInstruccion}\n\nCuando registres el pago en caja, el cobro de la placa *${datos.placa}* quedará confirmado.`;
         await this.enviarTextoConMapeoTelefono(datos.telefono, mensaje);
         return true;
     }

@@ -51,11 +51,17 @@ import QRCode from 'qrcode';
 import type { ITicketRepository } from '../../domain/repositories/ITicketRepository.js';
 import type { BaileysWhatsAppService } from '../../infrastructure/services/BaileysWhatsAppService.js';
 import { obtenerUrlPublicaWeb } from '../../infrastructure/config/env.config.js';
+import { CalculadorTarifa } from '../../domain/services/CalculadorTarifa.js';
+import type { IConfiguracionCobrosDigitalesRepository } from '../../domain/repositories/IConfiguracionCobrosDigitalesRepository.js';
+import type { IPasarelaPagoService } from '../../domain/services/IPasarelaPagoService.js';
+import type { MetodoPagoDigital } from '../../domain/types/clienteMensual.types.js';
 
 export class ProcesarRespuestaWhatsAppUseCase {
     constructor(
         private readonly ticketRepository: ITicketRepository,
-        private readonly whatsappService: BaileysWhatsAppService
+        private readonly whatsappService: BaileysWhatsAppService,
+        private readonly configuracionCobrosRepository: IConfiguracionCobrosDigitalesRepository,
+        private readonly pasarelaService: IPasarelaPagoService
     ) { }
 
     async ejecutar(telefonoCliente: string, textoMensaje: string) {
@@ -91,7 +97,11 @@ export class ProcesarRespuestaWhatsAppUseCase {
             return;
         }
         if (opcion === '1') {
-            await this.whatsappService.enviarMenuMediosPago(telefonoCliente);
+            const ticket = await this.ticketRepository.buscarTicketActivoPorTelefono(telefonoCliente);
+            const metodos = ticket
+                ? this.pasarelaService.metodosDisponibles(await this.configuracionCobrosRepository.obtener(ticket.parqueaderoId))
+                : [];
+            await this.whatsappService.enviarMenuMediosPago(telefonoCliente, metodos);
             return;
         }
 
@@ -121,19 +131,37 @@ export class ProcesarRespuestaWhatsAppUseCase {
             return;
         }
 
-        // 💳 SUB-OPCIONES DEL MENÚ DE PAGO (DaviPlata, WOMPI, Nequi)
-        if (opcion.includes('daviplata')) {
-            // Lógica o link de cobro DaviPlata
-            return;
-        }
-
-        if (opcion.includes('wompi') || opcion.includes('tarjeta')) {
-            // Lógica o link de pasarela WOMPI
-            return;
-        }
-
-        if (opcion.includes('nequi')) {
-            // Lógica o link de cobro Nequi
+        // 💳 Sub-opciones del menú de pago digital (Daviplata, Nequi, Breve/llave):
+        // el cliente transfiere por referencia y el cajero confirma al registrar la salida.
+        const metodoPago = this.detectarMetodoPagoDigital(opcion);
+        if (metodoPago) {
+            const ticketActivo = await this.ticketRepository.buscarTicketActivoPorTelefono(telefonoCliente);
+            if (!ticketActivo?.id) {
+                console.log(`⚠️ No se encontró tiquete activo para: ${telefonoCliente}`);
+                return;
+            }
+            const ticket = await this.ticketRepository.buscarTicketPorId(ticketActivo.id, ticketActivo.parqueaderoId);
+            if (!ticket) {
+                console.log(`⚠️ No se encontró el tiquete activo para: ${telefonoCliente}`);
+                return;
+            }
+            const configuracion = await this.configuracionCobrosRepository.obtener(ticket.parqueaderoId);
+            if (!this.pasarelaService.metodosDisponibles(configuracion).includes(metodoPago)) {
+                return;
+            }
+            const calculo = CalculadorTarifa.calcular(ticket.fechaEntrada, ticket.fechaSalida || new Date(), ticket.tarifa);
+            const instruccion = this.pasarelaService.construirInstruccion({
+                monto: calculo.totalAPagar,
+                referencia: ticket.codigoQr,
+                configuracion
+            });
+            await this.whatsappService.enviarInstruccionPagoDigital({
+                telefono: telefonoCliente,
+                nombreCliente: '',
+                placa: ticket.placa,
+                textoInstruccion: instruccion.texto
+            });
+            console.log(`💳 Instrucción de cobro digital enviada a [${telefonoCliente}] para ${ticket.placa}.`);
             return;
         }
 
@@ -159,6 +187,13 @@ export class ProcesarRespuestaWhatsAppUseCase {
 
             console.log(`🔄 Menú principal re-enviado exitosamente a [${telefonoCliente}]`);
         }
+    }
+
+    private detectarMetodoPagoDigital(opcion: string): MetodoPagoDigital | undefined {
+        if (opcion.includes('daviplata')) return 'DAVIPLATA';
+        if (opcion.includes('nequi')) return 'NEQUI';
+        if (opcion.includes('breve') || opcion.includes('llave')) return 'WOMPI_BRE_B';
+        return undefined;
     }
 
     // Helper robusto con manejo de tipos flexibles

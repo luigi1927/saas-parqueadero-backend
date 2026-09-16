@@ -10,7 +10,8 @@ import type {
     IResumenMensualidades,
     IReciboMensualidad,
     IClienteMensualDetalle,
-    IClienteMensualQr
+    IClienteMensualQr,
+    IIntencionPagoMensualidad
 } from '../../domain/types/clienteMensual.types.js';
 import { dbPool } from '../database/mysql.config.js';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -542,15 +543,50 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
     }
 
     private async marcarIntencionPagada(connection: PoolConnection, datos: IRegistrarPagoMensualidadDTO, pagoId: number): Promise<void> {
-        if (datos.canal !== 'FISICO' || !datos.cicloRenovado) {
+        if (!datos.cicloRenovado) {
             return;
         }
         await connection.execute(`
             UPDATE intenciones_pago_mensualidades
-            SET estado = 'PAGADA', pago_mensualidad_id = ?
-            WHERE cliente_id = ? AND fecha_vencimiento_ciclo = ? AND canal = 'WHATSAPP'
-              AND estado = 'PENDIENTE_PAGO_PRESENCIAL'
-        `, [pagoId, datos.clienteMensualId, datos.cicloRenovado]);
+            SET estado = 'PAGADA',
+                pago_mensualidad_id = ?,
+                metodo_pago = ?
+            WHERE cliente_id = ? AND fecha_vencimiento_ciclo = DATE(?)
+              AND estado IN ('PENDIENTE_PAGO_PRESENCIAL', 'PENDIENTE_PAGO_DIGITAL')
+        `, [pagoId, datos.metodoPago, datos.clienteMensualId, datos.cicloRenovado]);
+    }
+
+    async crearIntencionDigital(
+        parqueaderoId: number,
+        clienteMensualId: number,
+        monto: number,
+        metodoPago: 'NEQUI' | 'DAVIPLATA' | 'WOMPI_BRE_B',
+        referenciaExterna: string,
+        fechaVencimientoCiclo: Date,
+        fechaExpiracion: Date
+    ): Promise<IIntencionPagoMensualidad> {
+        await dbPool.execute(`
+            DELETE FROM intenciones_pago_mensualidades
+            WHERE cliente_id = ? AND canal = 'DIGITAL'
+              AND estado IN ('PENDIENTE_PAGO_DIGITAL', 'PENDIENTE_VERIFICACION', 'RECHAZADA', 'CANCELADA', 'EXPIRADA')
+        `, [clienteMensualId]);
+        const [result] = await dbPool.execute<ResultSetHeader>(`
+            INSERT INTO intenciones_pago_mensualidades
+              (parqueadero_id, cliente_id, canal, metodo_pago, estado, monto,
+               fecha_vencimiento_ciclo, fecha_expiracion, referencia_externa, creado_en)
+            VALUES (?, ?, 'DIGITAL', ?, 'PENDIENTE_PAGO_DIGITAL', ?, DATE(?), DATE(?), ?, NOW())
+        `, [parqueaderoId, clienteMensualId, metodoPago, monto, fechaVencimientoCiclo, fechaExpiracion, referenciaExterna]);
+        return {
+            id: result.insertId,
+            clienteMensualId,
+            parqueaderoId,
+            canal: 'DIGITAL',
+            metodoPago,
+            estado: 'PENDIENTE_PAGO_DIGITAL',
+            monto,
+            fechaExpiracion,
+            referenciaExterna
+        };
     }
 
     private async insertarNotificacionRenovada(

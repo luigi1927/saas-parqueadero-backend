@@ -13,6 +13,9 @@ import { ReintentarNotificacionMensualidadUseCase } from '../../application/use-
 import { MySQLNotificacionMensualidadRepository } from '../../infrastructure/repositories/MySQLNotificacionMensualidadRepository.js';
 import { ConsultarEstadoMensualidadQrUseCase } from '../../application/use-cases/ConsultarEstadoMensualidadQrUseCase.js';
 import { MySQLPlanSaasRepository } from '../../infrastructure/repositories/MySQLPlanSaasRepository.js';
+import { CrearCobroDigitalMensualidadUseCase } from '../../application/use-cases/CrearCobroDigitalMensualidadUseCase.js';
+import { MySQLConfiguracionCobrosDigitalesRepository } from '../../infrastructure/repositories/MySQLConfiguracionCobrosDigitalesRepository.js';
+import { PasarelaCobroReferenciaService } from '../../infrastructure/services/PasarelaCobroReferenciaService.js';
 
 const METODOS_PAGO_DIGITALES = new Set(['WOMPI_PSE', 'WOMPI_TARJETA', 'WOMPI_BRE_B', 'NEQUI', 'DAVIPLATA']);
 const planRepository = new MySQLPlanSaasRepository();
@@ -28,6 +31,12 @@ const gestionarClienteUseCase = new GestionarClienteMensualUseCase(clienteReposi
 const trazabilidadUseCase = new ConsultarTrazabilidadMensualidadUseCase(new MySQLTrazabilidadMensualidadRepository());
 const reintentarNotificacionUseCase = new ReintentarNotificacionMensualidadUseCase(new MySQLNotificacionMensualidadRepository());
 const consultarEstadoQrUseCase = new ConsultarEstadoMensualidadQrUseCase(clienteRepository, ticketRepository);
+const crearCobroDigitalUseCase = new CrearCobroDigitalMensualidadUseCase(
+    clienteRepository,
+    new MySQLConfiguracionCobrosDigitalesRepository(),
+    tarifaRepository,
+    new PasarelaCobroReferenciaService()
+);
 
 export class ClienteMensualController {
 
@@ -356,6 +365,35 @@ export class ClienteMensualController {
         } catch (error: unknown) {
             res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible reactivar la mensualidad.' });
         }
+    }
+
+    // POST /api/v1/clientes-mensuales/:id/cobros-digitales (crea intención de cobro por referencia)
+    static async crearCobroDigital(req: Request, res: Response): Promise<void> {
+        try {
+            const { parqueaderoId } = req.user!;
+            const metodoPago = ClienteMensualController.normalizarMetodoPagoDigital(String(req.body.metodoPago ?? ''));
+            const cobro = await crearCobroDigitalUseCase.ejecutar(parqueaderoId, Number(req.params.id), metodoPago);
+            res.status(201).json({
+                mensaje: 'Cobro digital creado. Comparte la referencia con el cliente para que pague desde su aplicación.',
+                data: {
+                    intencionId: cobro.intencionId,
+                    metodoPago: cobro.metodoPago,
+                    monto: cobro.monto,
+                    referenciaExterna: cobro.referenciaExterna,
+                    instruccion: cobro.instruccion
+                }
+            });
+        } catch (error: unknown) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible crear el cobro digital.' });
+        }
+    }
+
+    private static normalizarMetodoPagoDigital(valor: string): 'NEQUI' | 'DAVIPLATA' | 'WOMPI_BRE_B' {
+        const v = valor.toUpperCase();
+        if (v === 'BREVE' || v === 'WOMPI_BRE_B' || v === 'BRE_B' || v === 'LLAVE') return 'WOMPI_BRE_B';
+        if (v === 'NEQUI') return 'NEQUI';
+        if (v === 'DAVIPLATA' || v === 'DAVI') return 'DAVIPLATA';
+        throw new TypeError('El método de pago digital debe ser NEQUI, DAVIPLATA o BREVE.');
     }
 }
 

@@ -6,10 +6,14 @@ import { AnularTicketUseCase } from '../../application/use-cases/AnularTicketUse
 import { RegistrarEntradaUseCase } from '../../application/use-cases/RegistrarEntradaUseCase.js';
 import { GestionarMovimientoMensualQrUseCase } from '../../application/use-cases/GestionarMovimientoMensualQrUseCase.js';
 import { MySQLClienteMensualRepository } from '../../infrastructure/repositories/MySQLClienteMensualRepository.js';
+import { MySQLConfiguracionCobrosDigitalesRepository } from '../../infrastructure/repositories/MySQLConfiguracionCobrosDigitalesRepository.js';
+import { PasarelaCobroReferenciaService } from '../../infrastructure/services/PasarelaCobroReferenciaService.js';
 import { whatsappService } from '../../infrastructure/services/whatsappInstance.js';
 
 const ticketRepository = new MySQLTicketRepository();
 const consultarTicketUseCase = new ConsultarTicketUseCase(ticketRepository);
+const configuracionCobrosRepository = new MySQLConfiguracionCobrosDigitalesRepository();
+const pasarelaService = new PasarelaCobroReferenciaService();
 const registrarSalidaUseCase = new RegistrarSalidaUseCase(ticketRepository, whatsappService);
 const registrarEntradaUseCase = new RegistrarEntradaUseCase(ticketRepository, new MySQLClienteMensualRepository(), whatsappService);
 const gestionarMovimientoMensualQrUseCase = new GestionarMovimientoMensualQrUseCase(
@@ -32,7 +36,21 @@ export class TicketController {
                 return;
             }
             const resultado = await consultarTicketUseCase.ejecutarPorQr(codigoQr);
-            res.status(200).json({ data: resultado });
+            let respuesta: Record<string, unknown> = { ...resultado };
+            if (resultado.estado === 'ACTIVO') {
+                const configuracion = await configuracionCobrosRepository.obtener(resultado.parqueaderoId);
+                const medios = pasarelaService.mediosDisponibles(configuracion);
+                if (medios.length > 0) {
+                    respuesta = {
+                        ...respuesta,
+                        opcionesCobroDigital: {
+                            referencia: codigoQr,
+                            metodos: medios
+                        }
+                    };
+                }
+            }
+            res.status(200).json({ data: respuesta });
         } catch (error: any) {
             res.status(404).json({ error: error.message });
         }

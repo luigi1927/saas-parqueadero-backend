@@ -22,6 +22,7 @@ router.get('/', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualCon
 router.post('/', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.crear);
 router.get('/:id', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.detalle);
 router.post('/:id/pagos', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.registrarPago);
+router.post('/:id/cobros-digitales', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.crearCobroDigital);
 router.get('/:id/pagos', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.listarPagos);
 router.get('/pagos/:pagoId/recibo', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.obtenerRecibo);
 router.post('/pagos/:pagoId/recibo/enviar', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.enviarRecibo);

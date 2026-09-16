@@ -1,4 +1,4 @@
-import type { TratamientoCliente } from '../types/clienteMensual.types.js';
+import type { MetodoPagoDigital, TratamientoCliente } from '../types/clienteMensual.types.js';
 
 export interface DTOBienvenidaBaileys {
     telefono: string;
@@ -40,6 +40,20 @@ export interface DTORespuestaRenovacionMensualidad {
     tratamiento?: TratamientoCliente | undefined;
     placa: string;
     fechaLimite?: Date | undefined;
+}
+
+export interface DTOInstruccionPagoDigital {
+    telefono: string;
+    nombreCliente: string;
+    tratamiento?: TratamientoCliente | undefined;
+    placa: string;
+    textoInstruccion: string;
+}
+
+export interface DTOMenuRenovacionMensualidad {
+    telefono: string;
+    placa: string;
+    metodosDigitales: MetodoPagoDigital[];
 }
 
 export interface DTOReciboMensualidad {
@@ -116,10 +130,11 @@ export interface IWhatsAppService {
 
     enviarConfirmacionSalida(datos: DTOConfirmacionSalida): Promise<boolean>;
     enviarNotificacionMensualidad(datos: DTONotificacionMensualidad): Promise<boolean>;
-    enviarMenuRenovacionMensualidad(datos: DTORespuestaRenovacionMensualidad): Promise<boolean>;
+    enviarMenuRenovacionMensualidad(datos: DTOMenuRenovacionMensualidad): Promise<boolean>;
     enviarConfirmacionRechazoRenovacion(telefono: string, placa: string): Promise<boolean>;
     enviarConfirmacionCancelacionRenovacion(telefono: string, placa: string): Promise<boolean>;
     enviarInstruccionPagoPresencial(datos: DTORespuestaRenovacionMensualidad): Promise<boolean>;
+    enviarInstruccionPagoDigital(datos: DTOInstruccionPagoDigital): Promise<boolean>;
     enviarReciboMensualidad(datos: DTOReciboMensualidad): Promise<boolean>;
     enviarBienvenidaMensualidad(datos: DTOBienvenidaMensualidad): Promise<boolean>;
     enviarNuevoQrMensualidad(datos: DTOCambioTelefonoMensualidad): Promise<boolean>;

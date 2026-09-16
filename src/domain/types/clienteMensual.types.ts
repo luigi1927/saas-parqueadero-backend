@@ -27,7 +27,8 @@ export interface IClienteMensualDetalle extends IClienteMensual {
 
 export type TratamientoCliente = 'SR' | 'SRA' | 'NEUTRO';
 export type MetodoPagoMensualidad = 'EFECTIVO' | 'WOMPI_PSE' | 'WOMPI_TARJETA' | 'WOMPI_BRE_B' | 'NEQUI' | 'DAVIPLATA' | 'OTRO';
-export type CanalRenovacion = 'FISICO' | 'WHATSAPP';
+export type MetodoPagoDigital = 'NEQUI' | 'DAVIPLATA' | 'WOMPI_BRE_B';
+export type CanalRenovacion = 'FISICO' | 'WHATSAPP' | 'DIGITAL';
 export type EstadoIntencionPagoMensualidad = 'PENDIENTE_SELECCION' | 'PENDIENTE_PAGO_DIGITAL' | 'PENDIENTE_PAGO_PRESENCIAL' | 'PENDIENTE_VERIFICACION' | 'PAGADA' | 'RECHAZADA' | 'CANCELADA' | 'EXPIRADA';
 export type TipoNotificacionMensualidad = 'POR_VENCER_3_DIAS' | 'POR_VENCER_2_DIAS' | 'POR_VENCER_1_DIA' | 'VENCIDA_DIA_1' | 'VENCIDA_DIA_2' | 'VENCIDA_DIA_3' | 'VENCIDA_DIA_4' | 'VENCIDA_DIA_5' | 'RENOVADA';
 
@@ -71,6 +72,31 @@ export interface IIntencionPagoMensualidad {
     monto: number;
     fechaExpiracion?: Date | undefined;
     referenciaExterna?: string | undefined;
+}
+
+export interface IMedioCobroDigital {
+    metodoPago: MetodoPagoDigital;
+    nombre: string;
+    numero: string;
+    alias?: string | undefined;
+}
+
+export interface IInstruccionPagoDigital {
+    monto: number;
+    referencia: string;
+    metodos: IMedioCobroDigital[];
+    texto: string;
+    fechaExpiracion?: Date | undefined;
+}
+
+export interface ICobroDigitalGenerado {
+    intencionId: number;
+    clienteMensualId: number;
+    parqueaderoId: number;
+    metodoPago: MetodoPagoDigital;
+    monto: number;
+    referenciaExterna: string;
+    instruccion: IInstruccionPagoDigital;
 }
 
 export interface IPagoMensualidad {

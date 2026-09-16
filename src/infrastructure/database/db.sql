@@ -97,6 +97,7 @@ CREATE TABLE `clientes_mensuales` (
   `parqueadero_id` int unsigned NOT NULL,
   `usuario_id` int DEFAULT NULL,
   `placa` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `codigo_qr` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `nombre_propietario` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tratamiento` enum('SR','SRA','NEUTRO') COLLATE utf8mb4_unicode_ci NOT NULL,
   `telefono_whatsapp` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -109,9 +110,11 @@ CREATE TABLE `clientes_mensuales` (
   `actualizado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_parqueadero_placa` (`parqueadero_id`,`placa`),
+  UNIQUE KEY `uk_clientes_mensuales_codigo_qr` (`codigo_qr`),
   KEY `usuario_id` (`usuario_id`),
   KEY `idx_clientes_parqueadero_placa` (`parqueadero_id`,`placa`),
   KEY `idx_clientes_mensuales_vencimiento` (`fecha_vencimiento`,`estado`),
+  KEY `idx_clientes_mensuales_mora` (`parqueadero_id`,`estado`,`fecha_vencimiento`),
   CONSTRAINT `clientes_mensuales_ibfk_1` FOREIGN KEY (`parqueadero_id`) REFERENCES `parqueaderos` (`id`),
   CONSTRAINT `clientes_mensuales_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `chk_clientes_mensuales_dia_pago` CHECK ((`dia_pago_mensual` between 1 and 30)),
@@ -156,6 +159,38 @@ CREATE TABLE `configuracion_mensualidades` (
 LOCK TABLES `configuracion_mensualidades` WRITE;
 /*!40000 ALTER TABLE `configuracion_mensualidades` DISABLE KEYS */;
 /*!40000 ALTER TABLE `configuracion_mensualidades` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `configuracion_cobros_digitales`
+--
+
+DROP TABLE IF EXISTS `configuracion_cobros_digitales`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `configuracion_cobros_digitales` (
+  `parqueadero_id` int unsigned NOT NULL,
+  `nequi_numero` varchar(15) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `nequi_alias` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `daviplata_numero` varchar(15) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `daviplata_alias` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `breve_numero` varchar(15) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `breve_alias` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `mensaje_pie` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `actualizado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`parqueadero_id`),
+  CONSTRAINT `configuracion_cobros_digitales_ibfk_1` FOREIGN KEY (`parqueadero_id`) REFERENCES `parqueaderos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `configuracion_cobros_digitales`
+--
+
+LOCK TABLES `configuracion_cobros_digitales` WRITE;
+/*!40000 ALTER TABLE `configuracion_cobros_digitales` DISABLE KEYS */;
+/*!40000 ALTER TABLE `configuracion_cobros_digitales` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -229,11 +264,12 @@ CREATE TABLE `intenciones_pago_mensualidades` (
   `parqueadero_id` int unsigned NOT NULL,
   `cliente_id` int unsigned NOT NULL,
   `fecha_vencimiento_ciclo` date NOT NULL,
-  `canal` enum('FISICO','WHATSAPP') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `canal` enum('FISICO','WHATSAPP','DIGITAL') COLLATE utf8mb4_unicode_ci NOT NULL,
   `metodo_pago` enum('EFECTIVO','WOMPI_PSE','WOMPI_TARJETA','WOMPI_BRE_B','NEQUI','DAVIPLATA','OTRO') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `monto` decimal(10,2) NOT NULL,
   `estado` enum('PENDIENTE_SELECCION','PENDIENTE_PAGO_DIGITAL','PENDIENTE_PAGO_PRESENCIAL','PENDIENTE_VERIFICACION','PAGADA','RECHAZADA','CANCELADA','EXPIRADA') COLLATE utf8mb4_unicode_ci NOT NULL,
   `referencia_externa` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `pago_mensualidad_id` int DEFAULT NULL,
   `fecha_expiracion` datetime DEFAULT NULL,
   `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `actualizado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -241,8 +277,10 @@ CREATE TABLE `intenciones_pago_mensualidades` (
   UNIQUE KEY `uk_intencion_whatsapp_ciclo` (`cliente_id`,`fecha_vencimiento_ciclo`,`canal`),
   UNIQUE KEY `uk_intencion_referencia_externa` (`referencia_externa`),
   KEY `parqueadero_id` (`parqueadero_id`),
+  KEY `idx_intencion_pago_mensualidad` (`pago_mensualidad_id`),
   CONSTRAINT `intenciones_pago_mensualidades_ibfk_1` FOREIGN KEY (`parqueadero_id`) REFERENCES `parqueaderos` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `intenciones_pago_mensualidades_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `clientes_mensuales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `intenciones_pago_mensualidades_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `clientes_mensuales` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `intenciones_pago_mensualidades_ibfk_3` FOREIGN KEY (`pago_mensualidad_id`) REFERENCES `pagos_mensualidades` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -308,7 +346,7 @@ CREATE TABLE `pagos_mensualidades` (
   `transaccion_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `idempotency_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `turno_caja_id` int DEFAULT NULL,
-  `canal` enum('FISICO','WHATSAPP') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `canal` enum('FISICO','WHATSAPP','DIGITAL') COLLATE utf8mb4_unicode_ci NOT NULL,
   `periodo_pagado_inicio` date NOT NULL,
   `periodo_pagado_fin` date NOT NULL,
   `fecha_pago` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -373,10 +411,14 @@ DROP TABLE IF EXISTS `planes_saas`;
 CREATE TABLE `planes_saas` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nombre` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `gema` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRONCE',
   `precio_mensual` decimal(10,2) NOT NULL,
   `limite_motos` int DEFAULT '100',
   `soporta_whatsapp` tinyint(1) DEFAULT '1',
   `soporta_pagos_digitales` tinyint(1) DEFAULT '1',
+  `soporta_ver_reportes` tinyint(1) DEFAULT '1',
+  `soporta_descargar_reportes` tinyint(1) DEFAULT '1',
+  `recordatorios_whatsapp` tinyint(1) DEFAULT '1',
   `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -388,7 +430,7 @@ CREATE TABLE `planes_saas` (
 
 LOCK TABLES `planes_saas` WRITE;
 /*!40000 ALTER TABLE `planes_saas` DISABLE KEYS */;
-INSERT INTO `planes_saas` VALUES (1,'Plan Inicial',80000.00,100,1,1,'2026-08-29 20:26:41'),(2,'Plan Pro Ilimitado',120000.00,9999,1,1,'2026-08-29 20:26:41');
+INSERT INTO `planes_saas` VALUES (1,'Plan Inicial','BRONCE',80000.00,100,1,1,0,0,0,'2026-08-29 20:26:41'),(2,'Plan Pro Ilimitado','DIAMANTE',120000.00,9999,1,1,1,1,1,'2026-08-29 20:26:41');
 /*!40000 ALTER TABLE `planes_saas` ENABLE KEYS */;
 UNLOCK TABLES;
 
