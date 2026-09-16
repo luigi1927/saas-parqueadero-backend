@@ -5,9 +5,7 @@ import { authenticateToken, requireRoles } from '../middlewares/auth.middleware.
 const router = Router();
 router.use(authenticateToken, requireRoles('ADMIN_PARQUEADERO'));
 router.get('/parqueadero', MiPerfilController.parqueaderoPropio);
-router.patch('/parqueadero', MiPerfilController.actualizarParqueadero);
 router.get('/administrador', MiPerfilController.administradorPropio);
-router.patch('/administrador', MiPerfilController.actualizarAdministrador);
 router.get('/planes', MiPerfilController.planes);
 router.get('/pagos', MiPerfilController.pagos);
 router.post('/suscripciones', MiPerfilController.mejorarPlan);

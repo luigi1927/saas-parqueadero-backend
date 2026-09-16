@@ -59,6 +59,7 @@ export class MySQLNotificacionMensualidadRepository implements INotificacionMens
                             AND cliente.estado != 'CANCELADA'
                             AND COALESCE(configuracion.whatsapp_habilitado, TRUE) = TRUE
                             AND CURTIME() >= COALESCE(configuracion.hora_envio_whatsapp, '09:00:00')
+                            AND ${this.planHabilitaRecordatorios('cliente.parqueadero_id')}
         `);
 
         await dbPool.execute(`
@@ -78,6 +79,7 @@ export class MySQLNotificacionMensualidadRepository implements INotificacionMens
                             AND cliente.estado != 'CANCELADA'
                             AND COALESCE(configuracion.whatsapp_habilitado, TRUE) = TRUE
                             AND CURTIME() >= COALESCE(configuracion.hora_envio_whatsapp, '09:00:00')
+                            AND ${this.planHabilitaRecordatorios('cliente.parqueadero_id')}
               AND NOT EXISTS (
                   SELECT 1
                   FROM intenciones_pago_mensualidades intencion
@@ -108,6 +110,7 @@ export class MySQLNotificacionMensualidadRepository implements INotificacionMens
                                                         AND notificacion.fecha_vencimiento_ciclo = cliente.fecha_vencimiento
                             AND COALESCE(configuracion.whatsapp_habilitado, TRUE) = TRUE
                             AND CURTIME() >= COALESCE(configuracion.hora_envio_whatsapp, '09:00:00')
+                            AND ${this.planHabilitaRecordatorios('notificacion.parqueadero_id')}
             ORDER BY notificacion.creado_en ASC
                         LIMIT ${limiteSeguro}
                 `);
@@ -158,5 +161,33 @@ export class MySQLNotificacionMensualidadRepository implements INotificacionMens
             WHERE id = ? AND parqueadero_id = ? AND estado_envio = 'FALLIDO'
         `, [notificacionId, parqueaderoId]);
         return result.affectedRows === 1;
+    }
+
+    private planHabilitaRecordatorios(columnaParqueaderoId: string): string {
+        return `
+            (
+                EXISTS (
+                    SELECT 1
+                    FROM suscripciones_parqueadero suscripcion_plan
+                    INNER JOIN planes_saas plan_activo ON plan_activo.id = suscripcion_plan.plan_id
+                    WHERE suscripcion_plan.parqueadero_id = ${columnaParqueaderoId}
+                      AND suscripcion_plan.id = (
+                          SELECT MAX(suscripcion_ultima.id)
+                          FROM suscripciones_parqueadero suscripcion_ultima
+                          WHERE suscripcion_ultima.parqueadero_id = ${columnaParqueaderoId}
+                      )
+                      AND suscripcion_plan.estado_pago = 'APROBADO'
+                      AND suscripcion_plan.fecha_vencimiento >= CURDATE()
+                      AND plan_activo.recordatorios_whatsapp = 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM parqueaderos parqueadero_prueba
+                    WHERE parqueadero_prueba.id = ${columnaParqueaderoId}
+                      AND parqueadero_prueba.estado = 'PRUEBA_GRATUITA'
+                      AND parqueadero_prueba.fecha_fin_prueba >= CURDATE()
+                )
+            )
+        `;
     }
 }

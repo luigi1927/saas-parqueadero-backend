@@ -68,6 +68,15 @@ export interface DTOBienvenidaMensualidad {
     codigoQr: string;
 }
 
+export interface DTOCambioTelefonoMensualidad {
+    telefono: string;
+    nombreCliente: string;
+    tratamiento?: TratamientoCliente | undefined;
+    placa: string;
+    nombreParqueadero: string;
+    codigoQr: string;
+}
+
 export interface DTOCodigoRecuperacion {
     telefono: string;
     nombre: string;
@@ -113,5 +122,6 @@ export interface IWhatsAppService {
     enviarInstruccionPagoPresencial(datos: DTORespuestaRenovacionMensualidad): Promise<boolean>;
     enviarReciboMensualidad(datos: DTOReciboMensualidad): Promise<boolean>;
     enviarBienvenidaMensualidad(datos: DTOBienvenidaMensualidad): Promise<boolean>;
+    enviarNuevoQrMensualidad(datos: DTOCambioTelefonoMensualidad): Promise<boolean>;
     enviarCodigoRecuperacion(datos: DTOCodigoRecuperacion): Promise<boolean>;
 }

@@ -28,7 +28,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     try {
-        const decoded = jwt.verify(token, obtenerJwtSecret()) as JwtPayload;
+        const decoded = jwt.verify(token, obtenerJwtSecret(), { algorithms: ['HS256'] }) as JwtPayload;
 
         // Validación de sesión vigente: la cuenta debe seguir ACTIVA y con el mismo rol.
         // Esto revoca tokens de usuarios bloqueados/inactivos o con permisos cambiados.

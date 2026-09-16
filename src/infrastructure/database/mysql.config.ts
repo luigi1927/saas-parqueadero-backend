@@ -11,7 +11,7 @@ export const dbPool = mysql.createPool({
     database: process.env.DB_NAME || 'parqueadero_saas_db',
     port: Number(process.env.DB_PORT) || 3306,
     waitForConnections: true,
-    connectionLimit: 10, // Máximo 10 conexiones simultáneas por instancia
+    connectionLimit: Number(process.env.DB_POOL_CONNECTIONS) || 10, // Máximo 10 conexiones simultáneas por instancia
     queueLimit: 0,
     timezone: '-05:00', // Ajustado a la zona horaria de Colombia/Latam
     dateStrings: true

@@ -53,7 +53,7 @@ export class MySQLParqueaderoRepository implements IParqueaderoRepository {
         }
     }
 
-    async renovarSuscripcion(parqueaderoId: number, usuarioId: number, datos: IRenovarSuscripcionParqueaderoDTO): Promise<number> {
+    async renovarSuscripcion(parqueaderoId: number, usuarioId: number, datos: IRenovarSuscripcionParqueaderoDTO, estadoPagoInicial: 'APROBADO' | 'PENDIENTE' = 'APROBADO'): Promise<number> {
         const connection = await dbPool.getConnection();
         try {
             await connection.beginTransaction();
@@ -78,10 +78,12 @@ export class MySQLParqueaderoRepository implements IParqueaderoRepository {
                 INSERT INTO suscripciones_parqueadero (
                     parqueadero_id, plan_id, fecha_inicio, fecha_vencimiento, monto_pagado,
                     metodo_pago, transaccion_id, estado_pago
-                ) VALUES (?, ?, GREATEST(DATE(?), CURDATE()), DATE_ADD(GREATEST(DATE(?), CURDATE()), INTERVAL 1 MONTH), ?, ?, ?, 'APROBADO')
-            `, [parqueaderoId, plan.id, fechaInicio, fechaInicio, plan.precio_mensual, datos.metodoPago, datos.transaccionId.trim()]);
-            await connection.execute(`UPDATE parqueaderos SET estado = 'ACTIVO' WHERE id = ?`, [parqueaderoId]);
-            await this.registrarAuditoria(connection, parqueaderoId, usuarioId, 'RENOVACION_SUSCRIPCION_SAAS', `Suscripción ${suscripcion.insertId}`);
+                ) VALUES (?, ?, GREATEST(DATE(?), CURDATE()), DATE_ADD(GREATEST(DATE(?), CURDATE()), INTERVAL 1 MONTH), ?, ?, ?, ?)
+            `, [parqueaderoId, plan.id, fechaInicio, fechaInicio, plan.precio_mensual, datos.metodoPago, datos.transaccionId.trim(), estadoPagoInicial]);
+            if (estadoPagoInicial === 'APROBADO') {
+                await connection.execute(`UPDATE parqueaderos SET estado = 'ACTIVO' WHERE id = ?`, [parqueaderoId]);
+            }
+            await this.registrarAuditoria(connection, parqueaderoId, usuarioId, 'RENOVACION_SUSCRIPCION_SAAS', `Suscripción ${suscripcion.insertId} (${estadoPagoInicial})`);
             await connection.commit();
             return suscripcion.insertId;
         } catch (error: unknown) {
@@ -223,6 +225,31 @@ export class MySQLParqueaderoRepository implements IParqueaderoRepository {
             transaccionId: row.transaccion_id,
             estadoPago: row.estado_pago
         }));
+    }
+
+    async confirmarSuscripcion(parqueaderoId: number, suscripcionId: number, usuarioId: number): Promise<number> {
+        const connection = await dbPool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const [result] = await connection.execute<ResultSetHeader>(`
+                UPDATE suscripciones_parqueadero
+                SET estado_pago = 'APROBADO'
+                WHERE id = ? AND parqueadero_id = ? AND estado_pago = 'PENDIENTE'
+            `, [suscripcionId, parqueaderoId]);
+            if (result.affectedRows !== 1) {
+                await connection.rollback();
+                throw new Error('La suscripción no existe o ya fue confirmada.');
+            }
+            await connection.execute(`UPDATE parqueaderos SET estado = 'ACTIVO' WHERE id = ?`, [parqueaderoId]);
+            await this.registrarAuditoria(connection, parqueaderoId, usuarioId, 'CONFIRMACION_SUSCRIPCION_SAAS', `Suscripción ${suscripcionId} confirmada`);
+            await connection.commit();
+            return suscripcionId;
+        } catch (error: unknown) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     }
 
     async registrarConConfiguracion(datos: IRegistrarParqueaderoDTO): Promise<IParqueaderoRegistrado> {

@@ -3,7 +3,6 @@ import { GestionarMiPerfilUseCase } from '../../application/use-cases/GestionarM
 import { MySQLParqueaderoRepository } from '../../infrastructure/repositories/MySQLParqueaderoRepository.js';
 import { MySQLUsuarioRepository } from '../../infrastructure/repositories/MySQLUsuarioRepository.js';
 import { MySQLPlanSaasRepository } from '../../infrastructure/repositories/MySQLPlanSaasRepository.js';
-import type { IActualizarAdministradorPropioDTO, IActualizarParqueaderoPropioDTO } from '../../domain/types/miPerfil.types.js';
 import type { IRenovarSuscripcionParqueaderoDTO } from '../../domain/types/parqueadero.types.js';
 
 const useCase = new GestionarMiPerfilUseCase(
@@ -22,36 +21,12 @@ export class MiPerfilController {
         }
     }
 
-    static async actualizarParqueadero(req: Request, res: Response): Promise<void> {
-        try {
-            const parqueaderoId = MiPerfilController.parqueaderoId(req);
-            await useCase.actualizarParqueaderoPropio(parqueaderoId, req.body as IActualizarParqueaderoPropioDTO);
-            res.status(200).json({ mensaje: 'Datos del parqueadero actualizados.' });
-        } catch (error: unknown) {
-            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible actualizar el parqueadero.' });
-        }
-    }
-
     static async administradorPropio(req: Request, res: Response): Promise<void> {
         try {
             const parqueaderoId = MiPerfilController.parqueaderoId(req);
             res.status(200).json({ data: await useCase.obtenerAdministradorPropio(parqueaderoId, req.user!.usuarioId) });
         } catch (error: unknown) {
             res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible consultar los datos del administrador.' });
-        }
-    }
-
-    static async actualizarAdministrador(req: Request, res: Response): Promise<void> {
-        try {
-            const parqueaderoId = MiPerfilController.parqueaderoId(req);
-            const administrador = await useCase.actualizarAdministradorPropio(
-                parqueaderoId,
-                req.user!.usuarioId,
-                req.body as IActualizarAdministradorPropioDTO
-            );
-            res.status(200).json({ mensaje: 'Datos personales actualizados.', data: administrador });
-        } catch (error: unknown) {
-            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible actualizar los datos personales.' });
         }
     }
 

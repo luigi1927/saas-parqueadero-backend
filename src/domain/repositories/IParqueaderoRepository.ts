@@ -6,7 +6,8 @@ export interface IParqueaderoRepository {
     listarAdministrativos(): Promise<IParqueaderoAdministrativo[]>;
     obtenerDetalle(parqueaderoId: number): Promise<IParqueaderoDetalle | null>;
     cambiarEstado(parqueaderoId: number, estado: 'ACTIVO' | 'SUSPENDIDO', usuarioId: number, motivo: string): Promise<void>;
-    renovarSuscripcion(parqueaderoId: number, usuarioId: number, datos: IRenovarSuscripcionParqueaderoDTO): Promise<number>;
+    renovarSuscripcion(parqueaderoId: number, usuarioId: number, datos: IRenovarSuscripcionParqueaderoDTO, estadoPagoInicial?: 'APROBADO' | 'PENDIENTE'): Promise<number>;
+    confirmarSuscripcion(parqueaderoId: number, suscripcionId: number, usuarioId: number): Promise<number>;
     actualizarEstadosPorSuscripcion(): Promise<void>;
     actualizarDatosPropios(parqueaderoId: number, datos: IActualizarParqueaderoPropioDTO): Promise<void>;
     listarSuscripciones(parqueaderoId: number): Promise<ISuscripcionMembresia[]>;

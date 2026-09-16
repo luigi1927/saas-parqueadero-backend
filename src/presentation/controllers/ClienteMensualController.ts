@@ -12,6 +12,10 @@ import { MySQLTrazabilidadMensualidadRepository } from '../../infrastructure/rep
 import { ReintentarNotificacionMensualidadUseCase } from '../../application/use-cases/ReintentarNotificacionMensualidadUseCase.js';
 import { MySQLNotificacionMensualidadRepository } from '../../infrastructure/repositories/MySQLNotificacionMensualidadRepository.js';
 import { ConsultarEstadoMensualidadQrUseCase } from '../../application/use-cases/ConsultarEstadoMensualidadQrUseCase.js';
+import { MySQLPlanSaasRepository } from '../../infrastructure/repositories/MySQLPlanSaasRepository.js';
+
+const METODOS_PAGO_DIGITALES = new Set(['WOMPI_PSE', 'WOMPI_TARJETA', 'WOMPI_BRE_B', 'NEQUI', 'DAVIPLATA']);
+const planRepository = new MySQLPlanSaasRepository();
 
 const clienteRepository = new MySQLClienteMensualRepository();
 const turnoRepository = new MySQLTurnoRepository();
@@ -210,11 +214,22 @@ export class ClienteMensualController {
                 return;
             }
 
+            const metodoPagoEfectivo = metodoPago || 'EFECTIVO';
+            if (METODOS_PAGO_DIGITALES.has(metodoPagoEfectivo)) {
+                const acceso = await planRepository.obtenerVigenteYEstado(parqueaderoId);
+                const planPermiteDigital = acceso.estadoParqueadero === 'PRUEBA_GRATUITA'
+                    || acceso.plan?.soportaPagosDigitales === true;
+                if (!planPermiteDigital) {
+                    res.status(403).json({ error: 'Tu plan actual no incluye pagos digitales (WOMPI/NEQUI). Mejora tu plan desde Mi perfil.' });
+                    return;
+                }
+            }
+
             const pago = await registrarPagoUseCase.ejecutar(usuarioId, {
                 clienteMensualId: Number(id),
                 parqueaderoId,
                 monto: 0,
-                metodoPago: metodoPago || 'EFECTIVO',
+                metodoPago: metodoPagoEfectivo,
                 canal: 'FISICO',
                 idempotencyKey: idempotencyKey.trim(),
                 observaciones
@@ -231,8 +246,17 @@ export class ClienteMensualController {
         try {
             const { id } = req.params;
             const { parqueaderoId } = req.user!;
-
-            const pagos = await clienteRepository.listarPagosPorCliente(Number(id), parqueaderoId);
+            const clienteId = Number(id);
+            if (!Number.isInteger(clienteId) || clienteId <= 0) {
+                res.status(400).json({ error: 'El identificador del cliente no es válido.' });
+                return;
+            }
+            const cliente = await clienteRepository.obtenerDetalle(clienteId, parqueaderoId);
+            if (!cliente) {
+                res.status(404).json({ error: 'El cliente no existe o no pertenece a este parqueadero.' });
+                return;
+            }
+            const pagos = await clienteRepository.listarPagosPorCliente(clienteId, parqueaderoId);
             res.status(200).json({ data: pagos });
         } catch (error: any) {
             res.status(400).json({ error: error.message });
@@ -286,6 +310,31 @@ export class ClienteMensualController {
             res.status(200).json({ mensaje: 'Placa actualizada.', data: cliente });
         } catch (error: unknown) {
             res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible cambiar la placa.' });
+        }
+    }
+
+    // POST /api/v1/clientes-mensuales/:id/cambiar-telefono (Solo ADMIN_PARQUEADERO)
+    static async cambiarTelefono(req: Request, res: Response): Promise<void> {
+        try {
+            const { parqueaderoId, usuarioId } = req.user!;
+            const telefonoNuevo = String(req.body.telefonoNuevo ?? '');
+            const cliente = await gestionarClienteUseCase.cambiarTelefono(Number(req.params.id), parqueaderoId, usuarioId, telefonoNuevo);
+
+            const nombreParqueadero = await clienteRepository.obtenerNombreParqueadero(parqueaderoId);
+            whatsappService.enviarNuevoQrMensualidad({
+                telefono: cliente.telefono ?? telefonoNuevo,
+                nombreCliente: cliente.nombreCliente,
+                tratamiento: cliente.tratamiento,
+                placa: cliente.placa,
+                nombreParqueadero,
+                codigoQr: cliente.codigoQr ?? ''
+            }).catch(() => {
+                console.error('No fue posible enviar el nuevo QR de mensualidad por WhatsApp.');
+            });
+
+            res.status(200).json({ mensaje: 'Teléfono actualizado y nuevo código QR generado y enviado por WhatsApp.', data: cliente });
+        } catch (error: unknown) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible cambiar el teléfono.' });
         }
     }
 

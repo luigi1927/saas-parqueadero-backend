@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import type { IClienteMensualRepository } from '../../domain/repositories/IClienteMensualRepository.js';
 import type { ITicketRepository } from '../../domain/repositories/ITicketRepository.js';
 import type { IActualizarClienteMensualDTO } from '../../domain/types/clienteMensual.types.js';
@@ -39,6 +40,18 @@ export class GestionarClienteMensualUseCase {
             throw new Error('La nueva placa ya está registrada en otra mensualidad.');
         }
         return this.clienteMensualRepository.cambiarPlaca(id, parqueaderoId, usuarioId, placaNueva);
+    }
+
+    async cambiarTelefono(id: number, parqueaderoId: number, usuarioId: number, telefonoNuevo: string) {
+        const telefonoLimpio = telefonoNuevo.trim();
+        if (!telefonoLimpio) throw new TypeError('El nuevo número de WhatsApp es requerido.');
+        if (String(telefonoLimpio).replace(/\D/g, '').length > 20) {
+            throw new TypeError('El teléfono de WhatsApp es inválido.');
+        }
+        const cliente = await this.clienteMensualRepository.buscarPorId(id, parqueaderoId);
+        if (!cliente) throw new Error('La mensualidad no existe.');
+        const codigoQrNuevo = uuidv4();
+        return this.clienteMensualRepository.cambiarTelefono(id, parqueaderoId, usuarioId, telefonoLimpio, codigoQrNuevo);
     }
 
     async cancelar(id: number, parqueaderoId: number, usuarioId: number, motivo: string) {

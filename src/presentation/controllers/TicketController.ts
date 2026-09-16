@@ -3,11 +3,21 @@ import { MySQLTicketRepository } from '../../infrastructure/repositories/MySQLTi
 import { ConsultarTicketUseCase } from '../../application/use-cases/ConsultarTicketUseCase.js';
 import { RegistrarSalidaUseCase } from '../../application/use-cases/RegistrarSalidaUseCase.js';
 import { AnularTicketUseCase } from '../../application/use-cases/AnularTicketUseCase.js';
+import { RegistrarEntradaUseCase } from '../../application/use-cases/RegistrarEntradaUseCase.js';
+import { GestionarMovimientoMensualQrUseCase } from '../../application/use-cases/GestionarMovimientoMensualQrUseCase.js';
+import { MySQLClienteMensualRepository } from '../../infrastructure/repositories/MySQLClienteMensualRepository.js';
 import { whatsappService } from '../../infrastructure/services/whatsappInstance.js';
 
 const ticketRepository = new MySQLTicketRepository();
 const consultarTicketUseCase = new ConsultarTicketUseCase(ticketRepository);
 const registrarSalidaUseCase = new RegistrarSalidaUseCase(ticketRepository, whatsappService);
+const registrarEntradaUseCase = new RegistrarEntradaUseCase(ticketRepository, new MySQLClienteMensualRepository(), whatsappService);
+const gestionarMovimientoMensualQrUseCase = new GestionarMovimientoMensualQrUseCase(
+    new MySQLClienteMensualRepository(),
+    ticketRepository,
+    registrarEntradaUseCase,
+    registrarSalidaUseCase
+);
 const anularTicketUseCase = new AnularTicketUseCase(ticketRepository);
 
 export class TicketController {
@@ -64,6 +74,50 @@ export class TicketController {
 
             res.status(200).json({
                 mensaje: 'Salida registrada y cobro procesado con éxito',
+                data: resultado
+            });
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    }
+
+    // POST /api/v1/tickets/mensual/entrada (Protegido por JWT)
+    static async registrarEntradaMensualQr(req: Request, res: Response): Promise<void> {
+        try {
+            const { codigoQr } = req.body;
+            const { parqueaderoId, usuarioId } = req.user!;
+
+            if (!codigoQr) {
+                res.status(400).json({ error: 'El código QR de la mensualidad es obligatorio.' });
+                return;
+            }
+
+            const resultado = await gestionarMovimientoMensualQrUseCase.entrada(codigoQr, parqueaderoId, usuarioId);
+
+            res.status(201).json({
+                mensaje: 'Entrada registrada. El vehículo ahora está dentro del parqueadero.',
+                data: resultado
+            });
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    }
+
+    // POST /api/v1/tickets/mensual/salida (Protegido por JWT)
+    static async registrarSalidaMensualQr(req: Request, res: Response): Promise<void> {
+        try {
+            const { codigoQr } = req.body;
+            const { parqueaderoId, usuarioId } = req.user!;
+
+            if (!codigoQr) {
+                res.status(400).json({ error: 'El código QR de la mensualidad es obligatorio.' });
+                return;
+            }
+
+            const resultado = await gestionarMovimientoMensualQrUseCase.salida(codigoQr, parqueaderoId, usuarioId);
+
+            res.status(200).json({
+                mensaje: 'Salida registrada. El vehículo ya está fuera del parqueadero.',
                 data: resultado
             });
         } catch (error: any) {

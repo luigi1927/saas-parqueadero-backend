@@ -7,7 +7,8 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import pino from 'pino';
 import QRCodeBase64 from 'qrcode';
-import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCodigoRecuperacion } from '../../domain/services/IWhatsAppService.js';
+import type { IWhatsAppService, DTOBienvenidaBaileys, DTOEnvioQRBaileys, DTONotificacionMensualidad, DTORespuestaRenovacionMensualidad, DTOReciboMensualidad, DTOBienvenidaMensualidad, DTOCambioTelefonoMensualidad, DTOCodigoRecuperacion } from '../../domain/services/IWhatsAppService.js';
+import { obtenerUrlPublicaWeb } from '../config/env.config.js';
 
 export class BaileysWhatsAppService implements IWhatsAppService {
     private static readonly TIEMPO_ENVIO_MS = 15000;
@@ -289,14 +290,18 @@ export class BaileysWhatsAppService implements IWhatsAppService {
         const jid = this.formatearJid(datos.telefono);
         const minutos = datos.minutosGracia ?? 10;
 
-        // Formatear el total a pesos/moneda local (ej. $5.000)
+        // Formatear el total a pesos/moneda local (ej. $ 5.000)
         const valorFormateado = new Intl.NumberFormat('es-CO', {
             style: 'currency',
             currency: 'COP',
             maximumFractionDigits: 0
         }).format(datos.totalPagado);
 
-        const mensajeTexto = `Gracias *${datos.placa}*, hemos recibido tu pago por valor de *${valorFormateado}*.\n` +
+        const mensajeTexto = datos.totalPagado <= 0
+            ? `Gracias *${datos.placa}*, tu permanencia quedó cubierta por tu mensualidad (*sin costo adicional*).\n` +
+            `Tienes *${minutos} minutos* para salir del parqueadero.\n` +
+            `¡Gracias por visitar *${datos.nombreParqueadero}*! 🚗💨`
+            : `Gracias *${datos.placa}*, hemos recibido tu pago por valor de *${valorFormateado}*.\n` +
             `Tienes *${minutos} minutos* para salir del parqueadero o empezará un nuevo cobro.\n` +
             `¡Gracias por visitar *${datos.nombreParqueadero}*! 🚗💨`;
 
@@ -399,7 +404,7 @@ export class BaileysWhatsAppService implements IWhatsAppService {
 
         if (datos.codigoQr?.trim()) {
             try {
-                const urlQr = `https://tu-dominio-parqueadero.com/mensualidad/${datos.codigoQr}`;
+                const urlQr = `${obtenerUrlPublicaWeb()}/m/${datos.codigoQr}`;
                 const qrBuffer = await QRCodeBase64.toBuffer(urlQr, { type: 'png', width: 300, margin: 2 });
                 await this.conTimeout(this.sock.sendMessage(this.formatearJid(datos.telefono), {
                     image: qrBuffer,
@@ -408,6 +413,29 @@ export class BaileysWhatsAppService implements IWhatsAppService {
                 }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
             } catch (error: unknown) {
                 console.error('No fue posible enviar el QR de la mensualidad.', error);
+            }
+        }
+
+        return true;
+    }
+
+    async enviarNuevoQrMensualidad(datos: DTOCambioTelefonoMensualidad): Promise<boolean> {
+        const saludo = this.obtenerSaludoFormal();
+        const destinatario = this.formatearDestinatario(datos.nombreCliente, datos.tratamiento);
+        const mensaje = `${saludo}, ${destinatario}. Actualizamos el número de contacto registrado en *${datos.nombreParqueadero}* para la placa *${datos.placa}*.\n\n` +
+            `Este es tu *nuevo código QR de mensualidad*. Guárdalo: al escanearlo verás si el vehículo está *dentro* del parqueadero, su estado y la vigencia de tu mensualidad.`;
+        await this.enviarTextoConMapeoTelefono(datos.telefono, mensaje);
+
+        if (datos.codigoQr?.trim()) {
+            try {
+                const urlQr = `${obtenerUrlPublicaWeb()}/m/${datos.codigoQr}`;
+                const qrBuffer = await QRCodeBase64.toBuffer(urlQr, { type: 'png', width: 300, margin: 2 });
+                await this.conTimeout(this.sock.sendMessage(this.formatearJid(datos.telefono), {
+                    image: qrBuffer,
+                    caption: `🔖 *QR DE TU MENSUALIDAD - PLACA ${datos.placa}*`
+                }), BaileysWhatsAppService.TIEMPO_ENVIO_MS);
+            } catch (error: unknown) {
+                console.error('No fue posible enviar el QR actualizado de la mensualidad.', error);
             }
         }
 

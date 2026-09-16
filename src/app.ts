@@ -1,6 +1,8 @@
 import express from 'express';
 import type { Application, NextFunction, Request, Response } from 'express';
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -56,7 +58,20 @@ export const io = new Server(httpServer, {
 });
 
 // Middlewares de Seguridad y Registro
-app.use(helmet()); // Cabeceras HTTP seguras
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            // Angular carga la hoja de estilos global con media="print" y un onload
+            // inline (critical CSS). Sin 'unsafe-inline' en script-src-attr el
+            // navegador bloquea ese handler y la app queda sin estilos.
+            scriptSrcAttr: ["'unsafe-inline'"],
+            // Permite servir la app por HTTP local (p. ej. http://localhost:3000)
+            // sin que el navegador fuerce HTTPS en los assets.
+            upgradeInsecureRequests: null
+        }
+    }
+})); // Cabeceras HTTP seguras
 app.use(cors()); // Control de acceso HTTP
 app.use(express.json()); // Parsing de body JSON
 app.use(morgan('dev')); // Logger de peticiones HTTP en consola
@@ -94,6 +109,24 @@ app.get('/api/v1/health', async (_req: Request, res: Response): Promise<void> =>
         ultimaEjecucionMensualidades: procesadorNotificacionesMensualidad?.obtenerUltimaEjecucion()?.toISOString() ?? null
     });
 });
+
+// Frontend construido (Angular). Ruta configurable vía FRONTEND_DIST; por defecto
+// busca la carpeta del build junto al backend. Así la app web y la API conviven
+// en el mismo origen (ideal para túneles/dominios públicos y para los QR).
+const frontendDist =
+    process.env.FRONTEND_DIST?.trim() ||
+    join(process.cwd(), '..', 'saas-parqueadero-frontend', 'dist', 'saas-parqueadero-frontend', 'browser');
+// Con SSR de Angular el shell del SPA es 'index.csr.html' (no existe index.html).
+const archivoApp = ['index.html', 'index.csr.html'].find((archivo) => existsSync(join(frontendDist, archivo)));
+
+if (archivoApp) {
+    app.use(express.static(frontendDist));
+    // SPA fallback: sirve el shell para cualquier ruta que NO sea de la API
+    // (p. ej. /q/:codigoQr y /m/:codigoQr del visor público).
+    app.get(/^\/(?!api(\/|$)).*/, (_req: Request, res: Response): void => {
+        res.sendFile(join(frontendDist, archivoApp));
+    });
+}
 
 // Middleware centralizado de errores: garantiza respuestas JSON ante fallos
 // no controlados (evita HTML/stack traces expuestos al cliente).

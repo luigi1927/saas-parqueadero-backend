@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ClienteMensualController } from '../controllers/ClienteMensualController.js';
 import { authenticateToken, requireParqueaderoOperativo, requireRoles } from '../middlewares/auth.middleware.js';
+import { requirePlanFeature } from '../middlewares/planFeature.middleware.js';
 
 const router = Router();
 
@@ -15,8 +16,8 @@ router.use(authenticateToken, requireParqueaderoOperativo);
 
 router.get('/resumen', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.resumen);
 router.get('/intenciones', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.listarIntenciones);
-router.get('/notificaciones', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.listarNotificaciones);
-router.post('/notificaciones/:notificacionId/reintentar', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.reintentarNotificacion);
+router.get('/notificaciones', requireRoles('ADMIN_PARQUEADERO'), requirePlanFeature('recordatoriosWhatsapp'), ClienteMensualController.listarNotificaciones);
+router.post('/notificaciones/:notificacionId/reintentar', requireRoles('ADMIN_PARQUEADERO'), requirePlanFeature('recordatoriosWhatsapp'), ClienteMensualController.reintentarNotificacion);
 router.get('/', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.listar);
 router.post('/', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.crear);
 router.get('/:id', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.detalle);
@@ -26,6 +27,7 @@ router.get('/pagos/:pagoId/recibo', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'
 router.post('/pagos/:pagoId/recibo/enviar', requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), ClienteMensualController.enviarRecibo);
 router.put('/:id', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.actualizar);
 router.patch('/:id/placa', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.cambiarPlaca);
+router.post('/:id/cambiar-telefono', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.cambiarTelefono);
 router.post('/:id/cancelar', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.cancelar);
 router.post('/:id/reactivar', requireRoles('ADMIN_PARQUEADERO'), ClienteMensualController.reactivar);
 

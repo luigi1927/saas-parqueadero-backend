@@ -28,4 +28,13 @@ export class SuperAdminPlanController {
             res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible actualizar el plan.' });
         }
     }
+
+    static async eliminar(req: Request, res: Response): Promise<void> {
+        try {
+            await useCase.eliminar(Number(req.params.id));
+            res.status(200).json({ data: true });
+        } catch (error: unknown) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'No fue posible eliminar el plan.' });
+        }
+    }
 }

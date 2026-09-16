@@ -1,9 +1,14 @@
 import bcrypt from 'bcryptjs';
 import type { IParqueaderoRepository } from '../../domain/repositories/IParqueaderoRepository.js';
+import type { IUsuarioRepository } from '../../domain/repositories/IUsuarioRepository.js';
+import type { IActualizarAdministradorPropioDTO, IActualizarParqueaderoPropioDTO } from '../../domain/types/miPerfil.types.js';
 import type { IParqueaderoAdministrativo, IParqueaderoDetalle, IParqueaderoRegistrado, IRegistrarParqueaderoInput, IRenovarSuscripcionParqueaderoDTO } from '../../domain/types/parqueadero.types.js';
 
 export class RegistrarParqueaderoUseCase {
-    constructor(private readonly parqueaderoRepository: IParqueaderoRepository) { }
+    constructor(
+        private readonly parqueaderoRepository: IParqueaderoRepository,
+        private readonly usuarioRepository: IUsuarioRepository
+    ) { }
 
     async ejecutar(datos: IRegistrarParqueaderoInput): Promise<IParqueaderoRegistrado> {
         this.validar(datos);
@@ -30,7 +35,57 @@ export class RegistrarParqueaderoUseCase {
     async renovarSuscripcion(parqueaderoId: number, usuarioId: number, datos: IRenovarSuscripcionParqueaderoDTO): Promise<number> {
         if (!Number.isInteger(datos.planId) || datos.planId <= 0) throw new TypeError('El plan no es válido.');
         if (!datos.transaccionId.trim()) throw new TypeError('La referencia de transacción es requerida.');
-        return this.parqueaderoRepository.renovarSuscripcion(parqueaderoId, usuarioId, datos);
+        return this.parqueaderoRepository.renovarSuscripcion(parqueaderoId, usuarioId, datos, 'APROBADO');
+    }
+
+    async confirmarSuscripcion(parqueaderoId: number, suscripcionId: number, usuarioId: number): Promise<number> {
+        if (!Number.isInteger(parqueaderoId) || parqueaderoId <= 0) {
+            throw new TypeError('El identificador del parqueadero no es válido.');
+        }
+        if (!Number.isInteger(suscripcionId) || suscripcionId <= 0) {
+            throw new TypeError('El identificador de la suscripción no es válido.');
+        }
+        return this.parqueaderoRepository.confirmarSuscripcion(parqueaderoId, suscripcionId, usuarioId);
+    }
+
+    async actualizarDatos(parqueaderoId: number, datos: IActualizarParqueaderoPropioDTO): Promise<void> {
+        if (!Number.isInteger(parqueaderoId) || parqueaderoId <= 0) {
+            throw new TypeError('El identificador del parqueadero no es válido.');
+        }
+        if (!datos.nombreComercial?.trim() || !datos.ciudad?.trim() || !datos.direccion?.trim() || !datos.telefonoContacto?.trim()) {
+            throw new TypeError('Los datos del parqueadero son requeridos.');
+        }
+        await this.parqueaderoRepository.actualizarDatosPropios(parqueaderoId, {
+            nombreComercial: datos.nombreComercial.trim(),
+            ciudad: datos.ciudad.trim(),
+            direccion: datos.direccion.trim(),
+            telefonoContacto: datos.telefonoContacto.trim()
+        });
+    }
+
+    async actualizarAdministrador(parqueaderoId: number, administradorId: number, datos: IActualizarAdministradorPropioDTO): Promise<void> {
+        if (!Number.isInteger(parqueaderoId) || parqueaderoId <= 0) {
+            throw new TypeError('El identificador del parqueadero no es válido.');
+        }
+        if (!Number.isInteger(administradorId) || administradorId <= 0) {
+            throw new TypeError('El identificador del administrador no es válido.');
+        }
+        if (!datos.nombre?.trim() || !datos.telefono?.trim()) {
+            throw new TypeError('El nombre y el teléfono son requeridos.');
+        }
+        const email = datos.email?.trim() || undefined;
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new TypeError('El correo electrónico no es válido.');
+        }
+        const usuario = await this.usuarioRepository.buscarPorId(administradorId);
+        if (!usuario?.id || usuario.parqueaderoId !== parqueaderoId || usuario.rolNombre !== 'ADMIN_PARQUEADERO') {
+            throw new Error('El administrador no pertenece al parqueadero.');
+        }
+        await this.usuarioRepository.actualizarDatosPropios(administradorId, parqueaderoId, {
+            nombre: datos.nombre.trim(),
+            telefono: datos.telefono.trim(),
+            email
+        });
     }
 
     private validar(datos: IRegistrarParqueaderoInput): void {

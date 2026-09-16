@@ -50,6 +50,7 @@
 import QRCode from 'qrcode';
 import type { ITicketRepository } from '../../domain/repositories/ITicketRepository.js';
 import type { BaileysWhatsAppService } from '../../infrastructure/services/BaileysWhatsAppService.js';
+import { obtenerUrlPublicaWeb } from '../../infrastructure/config/env.config.js';
 
 export class ProcesarRespuestaWhatsAppUseCase {
     constructor(
@@ -71,7 +72,9 @@ export class ProcesarRespuestaWhatsAppUseCase {
                 return;
             }
 
-            const qrBuffer = await QRCode.toBuffer(ticket.codigoQr, {
+            // El QR codifica la URL pública del visor, para que al escanearlo se abra el tiquete.
+            const contenidoQr = `${obtenerUrlPublicaWeb()}/q/${ticket.codigoQr}`;
+            const qrBuffer = await QRCode.toBuffer(contenidoQr, {
                 type: 'png',
                 width: 350,
                 margin: 2
@@ -105,8 +108,8 @@ export class ProcesarRespuestaWhatsAppUseCase {
             const fechaIngreso = ticket.fechaEntrada ? new Date(ticket.fechaEntrada) : new Date();
             // 2. Calcular tiempo transcurrido pasándole un objeto Date garantizado
             const tiempoParqueo = this.calcularTiempoTranscurrido(fechaIngreso);
-            // 3. Generar la URL con el UUID único del tiquete
-            const urlWebTiquete = `https://tu-dominio-parqueadero.com/tiquete/${ticket.codigoQr}`;
+            // 3. Generar la URL pública del visor (ruta /q/:codigoQr en el frontend)
+            const urlWebTiquete = `${obtenerUrlPublicaWeb()}/q/${ticket.codigoQr}`;
 
             // 4. Enviar detalle al cliente
             await this.whatsappService.enviarDetalleTiqueteConLink({

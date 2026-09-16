@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { ReporteController } from '../controllers/ReporteController.js';
 import { authenticateToken, requireParqueaderoOperativo, requireRoles } from '../middlewares/auth.middleware.js';
+import { requirePlanFeature } from '../middlewares/planFeature.middleware.js';
 
 const router = Router();
-router.use(authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO'));
+router.use(authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO'), requirePlanFeature('soportaVerReportes'));
 router.get('/recaudo', ReporteController.recaudo);
 router.get('/cuadre-caja', ReporteController.cuadreCaja);
 router.get('/egresos', ReporteController.egresos);

@@ -1,8 +1,17 @@
 node_modules/
 
+# Entorno y secretos (nunca en el repositorio)
+.env
+.env.*
+!.env.example
+
 **/baileys_auth
 **.png
 dist/
+
+# Logs
+*.log
+logs/
 generar-hash.js
 generar-hash.js.map
 generar-hash.d.ts

@@ -33,7 +33,18 @@ export class EgresoController {
     static async listarPorTurno(req: Request, res: Response): Promise<void> {
         try {
             const { turnoId } = req.params;
-            const egresos = await egresoRepository.listarPorTurno(Number(turnoId));
+            const { parqueaderoId } = req.user!;
+            const turnoIdNum = Number(turnoId);
+            if (!Number.isInteger(turnoIdNum) || turnoIdNum <= 0) {
+                res.status(400).json({ error: 'El identificador del turno no es válido.' });
+                return;
+            }
+            const turno = await turnoRepository.buscarPorId(turnoIdNum, parqueaderoId);
+            if (!turno) {
+                res.status(404).json({ error: 'El turno no existe o no pertenece a este parqueadero.' });
+                return;
+            }
+            const egresos = await egresoRepository.listarPorTurno(turnoIdNum, parqueaderoId);
             res.status(200).json({ data: egresos });
         } catch (error: any) {
             res.status(400).json({ error: error.message });

@@ -15,4 +15,8 @@ router.get('/placa/:placa', authenticateToken, requireParqueaderoOperativo, requ
 router.post('/salida', salidaOperacionalLimiter, authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), TicketController.registrarSalida);
 router.post('/anular', salidaOperacionalLimiter, authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), TicketController.anularTicket);
 
+// Movimiento de clientes mensuales por código QR (el cajero escanea el QR de mensualidad)
+router.post('/mensual/entrada', salidaOperacionalLimiter, authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), TicketController.registrarEntradaMensualQr);
+router.post('/mensual/salida', salidaOperacionalLimiter, authenticateToken, requireParqueaderoOperativo, requireRoles('ADMIN_PARQUEADERO', 'OPERARIO'), TicketController.registrarSalidaMensualQr);
+
 export default router;

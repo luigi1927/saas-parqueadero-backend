@@ -18,6 +18,7 @@ export interface IClienteMensualRepository {
     obtenerNombreParqueadero(parqueaderoId: number): Promise<string>;
     tieneAccesoMensual(placa: string, parqueaderoId: number): Promise<boolean>;
     actualizarCliente(id: number, parqueaderoId: number, usuarioId: number, datos: import('../types/clienteMensual.types.js').IActualizarClienteMensualDTO): Promise<IClienteMensual>;
+    cambiarTelefono(id: number, parqueaderoId: number, usuarioId: number, telefonoNuevo: string, codigoQrNuevo: string): Promise<IClienteMensual>;
     cambiarPlaca(id: number, parqueaderoId: number, usuarioId: number, placaNueva: string): Promise<IClienteMensual>;
     cambiarEstado(id: number, parqueaderoId: number, estado: 'CANCELADA' | 'AL_DIA' | 'POR_VENCER' | 'VENCIDO', usuarioId: number, motivo: string): Promise<IClienteMensual>;
     listarPorParqueadero(parqueaderoId: number): Promise<IClienteMensual[]>;

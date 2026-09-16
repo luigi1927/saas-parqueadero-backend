@@ -195,6 +195,27 @@ export class MySQLClienteMensualRepository implements IClienteMensualRepository 
         return this.obtenerClienteActualizado(id, parqueaderoId);
     }
 
+    async cambiarTelefono(id: number, parqueaderoId: number, usuarioId: number, telefonoNuevo: string, codigoQrNuevo: string): Promise<IClienteMensual> {
+        const connection = await dbPool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const [result] = await connection.execute<ResultSetHeader>(`
+                UPDATE clientes_mensuales
+                SET telefono_whatsapp = ?, codigo_qr = ?
+                WHERE id = ? AND parqueadero_id = ? AND estado != 'CANCELADA'
+            `, [telefonoNuevo, codigoQrNuevo, id, parqueaderoId]);
+            if (result.affectedRows !== 1) throw new Error('La mensualidad no existe o está cancelada.');
+            await this.registrarAuditoria(connection, parqueaderoId, usuarioId, 'CAMBIO_TELEFONO_MENSUALIDAD', id);
+            await connection.commit();
+        } catch (error: unknown) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+        return this.obtenerClienteActualizado(id, parqueaderoId);
+    }
+
     async cambiarPlaca(id: number, parqueaderoId: number, usuarioId: number, placaNueva: string): Promise<IClienteMensual> {
         const connection = await dbPool.getConnection();
         try {

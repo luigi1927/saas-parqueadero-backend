@@ -50,14 +50,15 @@ export class MySQLEgresoRepository implements IEgresoRepository {
         }
     }
 
-    async listarPorTurno(turnoCajaId: number): Promise<IEgresoCaja[]> {
+    async listarPorTurno(turnoCajaId: number, parqueaderoId: number): Promise<IEgresoCaja[]> {
         const query = `
-      SELECT id, turno_caja_id, usuario_id, monto, motivo, fecha_registro
-      FROM egresos_caja_menor
-      WHERE turno_caja_id = ?
-      ORDER BY fecha_registro DESC
+        SELECT egreso.id, egreso.turno_caja_id, egreso.usuario_id, egreso.monto, egreso.motivo, egreso.fecha_registro
+        FROM egresos_caja_menor egreso
+        INNER JOIN turnos_caja turno ON turno.id = egreso.turno_caja_id
+        WHERE egreso.turno_caja_id = ? AND turno.parqueadero_id = ?
+        ORDER BY egreso.fecha_registro DESC
     `;
-        const [rows] = await dbPool.execute<EgresoRow[]>(query, [turnoCajaId]);
+        const [rows] = await dbPool.execute<EgresoRow[]>(query, [turnoCajaId, parqueaderoId]);
 
         return rows.map(fila => ({
             id: fila.id,

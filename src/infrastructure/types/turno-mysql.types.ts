@@ -19,3 +19,17 @@ export interface VentasTurnoRow extends RowDataPacket {
     totalOtros: number | null;
     totalTickets: number;
 }
+
+export interface TurnoHistorialRow extends RowDataPacket {
+    id: number;
+    monto_inicial_base: number;
+    total_egresos_caja: number;
+    monto_efectivo_declarado: number | null;
+    monto_efectivo_esperado: number | null;
+    diferencia_cuadre: number | null;
+    fecha_apertura: Date;
+    fecha_cierre: Date | null;
+    estado: 'ABIERTO' | 'CERRADO';
+    abierto_por: string | null;
+    ventas_efectivo: number;
+}

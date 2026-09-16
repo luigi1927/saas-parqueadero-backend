@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import type { ITicketRepository, IRegistroEntradaDTO } from '../../domain/repositories/ITicketRepository.js';
 import type { IWhatsAppService } from '../../domain/services/IWhatsAppService.js';
 import type { IClienteMensualRepository } from '../../domain/repositories/IClienteMensualRepository.js';
+import { obtenerUrlPublicaWeb } from '../../infrastructure/config/env.config.js';
 
 export class RegistrarEntradaUseCase {
     constructor(
@@ -44,9 +45,9 @@ export class RegistrarEntradaUseCase {
             throw new Error('No hay una tarifa activa configurada para este parqueadero.');
         }
 
-        // 4. Generar token UUID v4 y Código QR
+        // 4. Generar token UUID v4 y Código QR (el QR codifica la URL pública del visor del tiquete)
         const codigoQrToken = uuidv4();
-        const qrImageBase64 = await QRCode.toDataURL(codigoQrToken);
+        const qrImageBase64 = await QRCode.toDataURL(`${obtenerUrlPublicaWeb()}/q/${codigoQrToken}`);
         const fechaEntrada = new Date();
         const tieneAccesoMensual = await this.clienteMensualRepository.tieneAccesoMensual(placaLimpia, data.parqueaderoId);
 
